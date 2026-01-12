@@ -259,25 +259,33 @@ else if (currentType === 'expense') parseExpense(transcript);
 else if (currentType === 'allergy') parseAllergy(transcript);
 }
 
+function formatDate(d) {
+var yyyy = d.getFullYear();
+var mm = String(d.getMonth() + 1).padStart(2, '0');
+var dd = String(d.getDate()).padStart(2, '0');
+return yyyy + '-' + mm + '-' + dd;
+}
+
 function parseDate(text) {
 var today = new Date();
+var d = null;
 
 if (text.indexOf('yesterday') !== -1) {
-var d = new Date();
+d = new Date();
 d.setDate(d.getDate() - 1);
-return d.toISOString();
+return formatDate(d);
 }
 
 var lastDayMatch = text.match(/last\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)/i);
 if (lastDayMatch) {
 var days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 var targetDay = days.indexOf(lastDayMatch[1].toLowerCase());
-var d = new Date();
+d = new Date();
 var currentDay = d.getDay();
 var diff = currentDay - targetDay;
 if (diff <= 0) diff += 7;
 d.setDate(d.getDate() - diff);
-return d.toISOString();
+return formatDate(d);
 }
 
 var months = {
@@ -300,14 +308,14 @@ if (monthDayMatch) {
 var month = months[monthDayMatch[1].toLowerCase()];
 var day = parseInt(monthDayMatch[2]);
 var year = today.getFullYear();
-var d = new Date(year, month, day);
+d = new Date(year, month, day);
 if (d > today) {
 d.setFullYear(year - 1);
 }
-return d.toISOString();
+return formatDate(d);
 }
 
-return null;
+return formatDate(today);
 }
 
 function parseMileage(text) {
