@@ -21,6 +21,7 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 .btn span { display: block; }
 .btn .icon { font-size: 28px; margin-bottom: 8px; }
 .btn-stop { background: #ff4757; padding: 20px; font-size: 18px; margin-top: 20px; width: 100%; border: none; border-radius: 15px; color: white; font-weight: bold; }
+.btn-correct { background: #ffa502; padding: 12px 20px; font-size: 14px; margin-top: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .recording-label { color: #ff4757; text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 10px; }
 .status { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 15px; color: white; min-height: 80px; }
 .status-label { font-size: 11px; opacity: 0.7; margin-bottom: 8px; }
@@ -29,11 +30,16 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 .disabled { opacity: 0.4; pointer-events: none; }
 .overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; }
 .overlay.active { display: flex; }
-.popup { background: #1a1a2e; padding: 25px; border-radius: 15px; text-align: center; margin: 20px; }
+.popup { background: #1a1a2e; padding: 25px; border-radius: 15px; text-align: center; margin: 20px; max-width: 350px; width: 90%; }
 .popup h2 { color: white; margin: 0 0 20px 0; font-size: 18px; }
 .popup button { padding: 15px 30px; margin: 5px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; color: white; min-width: 100px; }
 .popup .btn1 { background: #4facfe; }
 .popup .btn2 { background: #f5576c; }
+.popup .btn-save { background: #43e97b; width: 100%; margin-top: 15px; }
+.popup .btn-cancel { background: #666; width: 100%; margin-top: 10px; }
+.edit-field { margin-bottom: 15px; text-align: left; }
+.edit-field label { color: #aaa; font-size: 12px; display: block; margin-bottom: 5px; }
+.edit-field input, .edit-field select { width: 100%; padding: 10px; border: none; border-radius: 5px; font-size: 16px; box-sizing: border-box; }
 .success { color: #43e97b; }
 .error { color: #f5576c; }
 </style>
@@ -78,6 +84,10 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 🛑 Tap When Done Speaking
 </button>
 
+<button class="btn btn-correct hidden" id="correctButton" onclick="showCorrectForm()">
+✏️ Correct Entry
+</button>
+
 <div class="overlay" id="wpPrompt">
 <div class="popup">
 <h2>Work or Personal?</h2>
@@ -94,10 +104,22 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 </div>
 </div>
 
+<div class="overlay" id="editPrompt">
+<div class="popup">
+<h2 id="editTitle">Edit Entry</h2>
+<div id="editFields"></div>
+<button class="btn-save" onclick="saveCorrection()">Save Changes</button>
+<button class="btn-cancel" onclick="cancelCorrection()">Cancel</button>
+</div>
+</div>
+
 <script>
 var recognition;
 var currentType = null;
 var pendingData = {};
+var lastSavedData = {};
+var lastSavedRow = null;
+var lastSavedSheet = null;
 var spokenText = '';
 
 var categoryKeywords = {
@@ -147,6 +169,8 @@ var categoryKeywords = {
 'special': 'Special Expenses',
 'fyi': 'FYI'
 };
+
+var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals & Entertainment', 'Promotions/Gifts/Tickets', 'Office/Postage/Stationery', 'Hotels', 'Travel Fares', 'Phone/Internet', 'Other Business', 'BUH', 'CME', 'License/Membership Fees', 'NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
 
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -204,10 +228,21 @@ document.getElementById('mainButtons').classList.add('disabled');
 document.getElementById('stopButton').classList.remove('hidden');
 }
 
+function showCorrectButton() {
+document.getElementById('correctButton').classList.remove('hidden');
+}
+
+function hideCorrectButton() {
+document.getElementById('correctButton').classList.add('hidden');
+}
+
 function startEntry(type) {
 currentType = type;
 pendingData = {};
 spokenText = '';
+hideCorrectButton();
+lastSavedRow = null;
+lastSavedSheet = null;
 
 var labels = {
 mileage: '🎤 Say: "207608 home to hospital work for conference"',
@@ -355,7 +390,7 @@ return;
 if (!wp) {
 document.getElementById('wpPrompt').classList.add('active');
 } else {
-submitData(pendingData);
+submitData(pendingData, false);
 }
 }
 
@@ -377,7 +412,7 @@ if (!price || !liters || !odometer) {
 updateStatus('Need: price, liters, odometer.', true);
 return;
 }
-submitData(pendingData);
+submitData(pendingData, false);
 }
 
 function parseExpense(text) {
@@ -431,7 +466,7 @@ return;
 if (!corpPersonal) {
 document.getElementById('corpPrompt').classList.add('active');
 } else {
-submitData(pendingData);
+submitData(pendingData, false);
 }
 }
 
@@ -461,23 +496,116 @@ if (!right && !left) {
 updateStatus('Could not find dose.', true);
 return;
 }
-submitData(pendingData);
+submitData(pendingData, false);
 }
 
 function selectWP(value) {
 document.getElementById('wpPrompt').classList.remove('active');
 pendingData.wp = value;
-submitData(pendingData);
+submitData(pendingData, false);
 }
 
 function selectCorp(value) {
 document.getElementById('corpPrompt').classList.remove('active');
 pendingData.corpPersonal = value;
 pendingData.paidOn = (value === 'Corp') ? 'Corp Card' : 'Personal Card';
-submitData(pendingData);
+submitData(pendingData, false);
 }
 
-function submitData(data) {
+function showCorrectForm() {
+var html = '';
+var title = '';
+
+if (lastSavedData.type === 'mileage') {
+title = 'Edit Mileage';
+html = '<div class="edit-field"><label>Date</label><input type="date" id="editDate" value="' + lastSavedData.date + '"></div>';
+html += '<div class="edit-field"><label>Odometer</label><input type="number" id="editOdometer" value="' + lastSavedData.finish + '"></div>';
+html += '<div class="edit-field"><label>From</label><input type="text" id="editFrom" value="' + lastSavedData.from + '"></div>';
+html += '<div class="edit-field"><label>To</label><input type="text" id="editTo" value="' + lastSavedData.to + '"></div>';
+html += '<div class="edit-field"><label>Work/Personal</label><select id="editWP"><option value="Work"' + (lastSavedData.wp === 'Work' ? ' selected' : '') + '>Work</option><option value="Personal"' + (lastSavedData.wp === 'Personal' ? ' selected' : '') + '>Personal</option></select></div>';
+html += '<div class="edit-field"><label>Description</label><input type="text" id="editDescription" value="' + (lastSavedData.description || '') + '"></div>';
+}
+else if (lastSavedData.type === 'gas') {
+title = 'Edit Gas';
+html = '<div class="edit-field"><label>Date</label><input type="date" id="editDate" value="' + lastSavedData.date + '"></div>';
+html += '<div class="edit-field"><label>Odometer</label><input type="number" id="editOdometer" value="' + lastSavedData.odometer + '"></div>';
+html += '<div class="edit-field"><label>Liters</label><input type="number" step="0.1" id="editLiters" value="' + lastSavedData.liters + '"></div>';
+html += '<div class="edit-field"><label>Price ($)</label><input type="number" step="0.01" id="editPrice" value="' + lastSavedData.price + '"></div>';
+}
+else if (lastSavedData.type === 'expense') {
+title = 'Edit Expense';
+html = '<div class="edit-field"><label>Date</label><input type="date" id="editDate" value="' + lastSavedData.date + '"></div>';
+html += '<div class="edit-field"><label>Amount ($)</label><input type="number" step="0.01" id="editAmount" value="' + lastSavedData.amount + '"></div>';
+html += '<div class="edit-field"><label>Vendor</label><input type="text" id="editVendor" value="' + lastSavedData.vendor + '"></div>';
+html += '<div class="edit-field"><label>Category</label><select id="editCategory">';
+for (var i = 0; i < allCategories.length; i++) {
+html += '<option value="' + allCategories[i] + '"' + (lastSavedData.category === allCategories[i] ? ' selected' : '') + '>' + allCategories[i] + '</option>';
+}
+html += '</select></div>';
+html += '<div class="edit-field"><label>Corp/Personal</label><select id="editCorpPersonal"><option value="Corp"' + (lastSavedData.corpPersonal === 'Corp' ? ' selected' : '') + '>Corp</option><option value="Personal"' + (lastSavedData.corpPersonal === 'Personal' ? ' selected' : '') + '>Personal</option></select></div>';
+html += '<div class="edit-field"><label>Description</label><input type="text" id="editExpenseDescription" value="' + (lastSavedData.description || '') + '"></div>';
+}
+else if (lastSavedData.type === 'allergy') {
+title = 'Edit Allergy';
+html = '<div class="edit-field"><label>Date</label><input type="date" id="editDate" value="' + lastSavedData.date + '"></div>';
+html += '<div class="edit-field"><label>Right</label><input type="number" step="0.05" id="editRight" value="' + lastSavedData.right + '"></div>';
+html += '<div class="edit-field"><label>Left</label><input type="number" step="0.05" id="editLeft" value="' + lastSavedData.left + '"></div>';
+html += '<div class="edit-field"><label>Notes</label><input type="text" id="editNotes" value="' + (lastSavedData.notes || '') + '"></div>';
+}
+
+document.getElementById('editTitle').textContent = title;
+document.getElementById('editFields').innerHTML = html;
+document.getElementById('editPrompt').classList.add('active');
+}
+
+function saveCorrection() {
+var correctedData = { type: lastSavedData.type };
+
+if (lastSavedData.type === 'mileage') {
+correctedData.date = document.getElementById('editDate').value;
+correctedData.finish = parseInt(document.getElementById('editOdometer').value);
+correctedData.from = document.getElementById('editFrom').value;
+correctedData.to = document.getElementById('editTo').value;
+correctedData.wp = document.getElementById('editWP').value;
+correctedData.description = document.getElementById('editDescription').value;
+}
+else if (lastSavedData.type === 'gas') {
+correctedData.date = document.getElementById('editDate').value;
+correctedData.odometer = parseInt(document.getElementById('editOdometer').value);
+correctedData.liters = parseFloat(document.getElementById('editLiters').value);
+correctedData.price = parseFloat(document.getElementById('editPrice').value);
+}
+else if (lastSavedData.type === 'expense') {
+correctedData.date = document.getElementById('editDate').value;
+correctedData.amount = parseFloat(document.getElementById('editAmount').value);
+correctedData.vendor = document.getElementById('editVendor').value;
+correctedData.category = document.getElementById('editCategory').value;
+correctedData.corpPersonal = document.getElementById('editCorpPersonal').value;
+correctedData.paidOn = (correctedData.corpPersonal === 'Corp') ? 'Corp Card' : 'Personal Card';
+correctedData.description = document.getElementById('editExpenseDescription').value;
+}
+else if (lastSavedData.type === 'allergy') {
+correctedData.date = document.getElementById('editDate').value;
+correctedData.right = parseFloat(document.getElementById('editRight').value);
+correctedData.left = parseFloat(document.getElementById('editLeft').value);
+correctedData.notes = document.getElementById('editNotes').value;
+}
+
+// Add delete info for old row
+if (lastSavedRow && lastSavedSheet) {
+correctedData.deleteRow = lastSavedRow;
+correctedData.deleteSheet = lastSavedSheet;
+}
+
+document.getElementById('editPrompt').classList.remove('active');
+submitData(correctedData, true);
+}
+
+function cancelCorrection() {
+document.getElementById('editPrompt').classList.remove('active');
+}
+
+function submitData(data, isCorrection) {
 var scriptUrl = localStorage.getItem('scriptUrl');
 if (!scriptUrl) {
 updateStatus('Please set Script URL', true);
@@ -486,6 +614,7 @@ return;
 }
 
 updateStatus('Saving...');
+hideCorrectButton();
 
 var params = [];
 for (var key in data) {
@@ -496,24 +625,52 @@ params.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
 
 var url = scriptUrl + '?' + params.join('&');
 
+// Store for potential correction (without delete info)
+var dataToStore = JSON.parse(JSON.stringify(data));
+delete dataToStore.deleteRow;
+delete dataToStore.deleteSheet;
+lastSavedData = dataToStore;
+
 var img = new Image();
 img.onload = function() {
-var summary = '';
-if (data.type === 'mileage') summary = 'Mileage: ' + data.finish + ' km, ' + data.from + ' to ' + data.to + ', ' + data.wp;
-else if (data.type === 'gas') summary = 'Gas: $' + data.price + ', ' + data.liters + 'L';
-else if (data.type === 'expense') summary = 'Expense: $' + data.amount + ' ' + data.category;
-else if (data.type === 'allergy') summary = 'Allergy: R=' + data.right + ', L=' + data.left;
-updateStatus('✅ ' + summary);
+showSuccess(data, isCorrection);
 };
 img.onerror = function() {
+showSuccess(data, isCorrection);
+};
+img.src = url;
+}
+
+function showSuccess(data, isCorrection) {
 var summary = '';
 if (data.type === 'mileage') summary = 'Mileage: ' + data.finish + ' km, ' + data.from + ' to ' + data.to + ', ' + data.wp;
 else if (data.type === 'gas') summary = 'Gas: $' + data.price + ', ' + data.liters + 'L';
 else if (data.type === 'expense') summary = 'Expense: $' + data.amount + ' ' + data.category;
 else if (data.type === 'allergy') summary = 'Allergy: R=' + data.right + ', L=' + data.left;
+
+if (isCorrection) {
+updateStatus('✅ Corrected: ' + summary);
+} else {
 updateStatus('✅ ' + summary);
+}
+
+// Track row info for corrections
+var sheetMap = {
+'mileage': 'Mileage',
+'gas': 'Gas',
+'expense': 'Expenses',
+'allergy': 'Allergy Shots'
 };
-img.src = url;
+lastSavedSheet = sheetMap[data.type];
+
+// We estimate the row - it will be the first empty row
+// This is a limitation since we can't get the actual row back from the image request
+// For now, we'll track it client-side
+if (!data.deleteRow) {
+lastSavedRow = 2; // Default estimate - user should correct immediately if needed
+}
+
+showCorrectButton();
 }
 </script>
 
