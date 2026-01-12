@@ -337,7 +337,10 @@ var description = '';
 var forMatch = text.match(/\bfor\s+(.+)$/i);
 if (forMatch) {
 description = forMatch[1]
-.replace(/\b(work|personal|corp|corporate)\b/gi, '')
+.replace(/\bwork\b/gi, '')
+.replace(/\bpersonal\b/gi, '')
+.replace(/\bcorp\b/gi, '')
+.replace(/\bcorporate\b/gi, '')
 .replace(/\b\d{5,}\b/g, '')
 .replace(/\s+/g, ' ')
 .trim();
