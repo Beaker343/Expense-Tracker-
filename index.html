@@ -1,1 +1,419 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Expense Tracker</title>
+<style type="text/css">
+body { font-family: -apple-system, sans-serif; background: #1a1a2e; margin: 0; padding: 20px; min-height: 100vh; box-sizing: border-box; }
+h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
+.config { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+.config label { color: white; font-size: 12px; display: block; margin-bottom: 5px; }
+.config input { width: 100%; padding: 10px; border: none; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
+.config button { margin-top: 10px; padding: 10px 20px; background: #4facfe; color: white; border: none; border-radius: 5px; font-size: 14px; }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+.btn { padding: 25px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 15px; color: white; text-align: center; }
+.btn-mileage { background: #667eea; }
+.btn-gas { background: #f5576c; }
+.btn-expense { background: #4facfe; }
+.btn-allergy { background: #43e97b; }
+.btn span { display: block; }
+.btn .icon { font-size: 28px; margin-bottom: 8px; }
+.status { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 15px; color: white; min-height: 80px; }
+.status-label { font-size: 11px; opacity: 0.7; margin-bottom: 8px; }
+.status-text { font-size: 14px; }
+.hidden { display: none; }
+.overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; }
+.overlay.active { display: flex; }
+.popup { background: #1a1a2e; padding: 25px; border-radius: 15px; text-align: center; margin: 20px; }
+.popup h2 { color: white; margin: 0 0 20px 0; font-size: 18px; }
+.popup button { padding: 15px 30px; margin: 5px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; color: white; min-width: 100px; }
+.popup .btn1 { background: #4facfe; }
+.popup .btn2 { background: #f5576c; }
+.success { color: #43e97b; }
+.error { color: #f5576c; }
+</style>
+</head>
+<body>
 
+<h1>📊 Expense Tracker</h1>
+
+<div class="config" id="configSection">
+<label>Google Apps Script URL:</label>
+<input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/...">
+<button onclick="saveConfig()">Save & Hide</button>
+</div>
+
+<div class="buttons">
+<button class="btn btn-mileage" onclick="startEntry('mileage')">
+<span class="icon">🚗</span>
+<span>Mileage</span>
+</button>
+<button class="btn btn-gas" onclick="startEntry('gas')">
+<span class="icon">⛽</span>
+<span>Gas</span>
+</button>
+<button class="btn btn-expense" onclick="startEntry('expense')">
+<span class="icon">💳</span>
+<span>Expense</span>
+</button>
+<button class="btn btn-allergy" onclick="startEntry('allergy')">
+<span class="icon">💉</span>
+<span>Allergy</span>
+</button>
+</div>
+
+<div class="status">
+<div class="status-label">Status</div>
+<div class="status-text" id="statusText">Tap a button to start</div>
+</div>
+
+<div class="overlay" id="wpPrompt">
+<div class="popup">
+<h2>Work or Personal?</h2>
+<button class="btn1" onclick="selectWP('Work')">Work</button>
+<button class="btn2" onclick="selectWP('Personal')">Personal</button>
+</div>
+</div>
+
+<div class="overlay" id="corpPrompt">
+<div class="popup">
+<h2>Corp or Personal?</h2>
+<button class="btn1" onclick="selectCorp('Corp')">Corp</button>
+<button class="btn2" onclick="selectCorp('Personal')">Personal</button>
+</div>
+</div>
+
+<script>
+var recognition;
+var currentType = null;
+var pendingData = {};
+
+var categoryKeywords = {
+'parking': 'Parking',
+'repair': 'Repairs & Maintenance',
+'repairs': 'Repairs & Maintenance',
+'maintenance': 'Repairs & Maintenance',
+'car repair': 'Repairs & Maintenance',
+'car wash': 'Auto Wash',
+'auto wash': 'Auto Wash',
+'wash': 'Auto Wash',
+'meals': 'Meals & Entertainment',
+'meal': 'Meals & Entertainment',
+'dinner': 'Meals & Entertainment',
+'lunch': 'Meals & Entertainment',
+'breakfast': 'Meals & Entertainment',
+'entertainment': 'Meals & Entertainment',
+'promotion': 'Promotions/Gifts/Tickets',
+'promotions': 'Promotions/Gifts/Tickets',
+'gift': 'Promotions/Gifts/Tickets',
+'gifts': 'Promotions/Gifts/Tickets',
+'ticket': 'Promotions/Gifts/Tickets',
+'tickets': 'Promotions/Gifts/Tickets',
+'office': 'Office/Postage/Stationery',
+'postage': 'Office/Postage/Stationery',
+'stationery': 'Office/Postage/Stationery',
+'hotel': 'Hotels',
+'hotels': 'Hotels',
+'travel': 'Travel Fares',
+'flight': 'Travel Fares',
+'airfare': 'Travel Fares',
+'fare': 'Travel Fares',
+'fares': 'Travel Fares',
+'phone': 'Phone/Internet',
+'internet': 'Phone/Internet',
+'other business': 'Other Business',
+'buh': 'BUH',
+'home maintenance buh': 'BUH',
+'cme': 'CME',
+'course': 'CME',
+'book': 'CME',
+'subscription': 'CME',
+'education': 'CME',
+'membership': 'License/Membership Fees',
+'dues': 'License/Membership Fees',
+'medical license': 'License/Membership Fees',
+'corp': 'Corp',
+'corporate': 'Corp',
+'non-buh': 'NON-BUH',
+'non buh': 'NON-BUH',
+'home maintenance non-buh': 'NON-BUH',
+'donation': 'Donations',
+'donations': 'Donations',
+'charitable': 'Donations',
+'special': 'Special Expenses',
+'special expense': 'Special Expenses',
+'special expenses': 'Special Expenses',
+'fyi': 'FYI'
+};
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+recognition = new SpeechRecognition();
+recognition.continuous = false;
+recognition.interimResults = false;
+recognition.lang = 'en-US';
+
+recognition.onresult = function(event) {
+var transcript = event.results[0][0].transcript.toLowerCase();
+updateStatus('Heard: "' + transcript + '"');
+processVoiceInput(transcript);
+};
+
+recognition.onerror = function(event) {
+updateStatus('Error: ' + event.error, true);
+};
+}
+
+window.onload = function() {
+var savedUrl = localStorage.getItem('scriptUrl');
+if (savedUrl) {
+document.getElementById('scriptUrl').value = savedUrl;
+document.getElementById('configSection').classList.add('hidden');
+}
+};
+
+function saveConfig() {
+var url = document.getElementById('scriptUrl').value.trim();
+if (url) {
+localStorage.setItem('scriptUrl', url);
+document.getElementById('configSection').classList.add('hidden');
+updateStatus('Configuration saved!');
+}
+}
+
+function updateStatus(text, isError) {
+var el = document.getElementById('statusText');
+el.textContent = text;
+el.className = 'status-text' + (isError ? ' error' : '');
+}
+
+function startEntry(type) {
+currentType = type;
+pendingData = {};
+
+var labels = {
+mileage: '🎤 Listening... (e.g., "207608 home to LMH work")',
+gas: '🎤 Listening... (e.g., "45 dollars 52 liters 207500")',
+expense: '🎤 Listening... (e.g., "CME 200 dollars CAEP")',
+allergy: '🎤 Listening... (e.g., "0.3 both")'
+};
+
+updateStatus(labels[type]);
+
+if (recognition) {
+recognition.start();
+} else {
+updateStatus('Speech recognition not supported', true);
+}
+}
+
+function processVoiceInput(transcript) {
+if (currentType === 'mileage') parseMileage(transcript);
+else if (currentType === 'gas') parseGas(transcript);
+else if (currentType === 'expense') parseExpense(transcript);
+else if (currentType === 'allergy') parseAllergy(transcript);
+}
+
+function parseMileage(text) {
+var odometerMatch = text.match(/\b(\d{5,})\b/);
+var finish = odometerMatch ? parseInt(odometerMatch[1]) : null;
+
+var toMatch = text.match(/(?:from\s+)?(\w+)\s+to\s+(\w+)/i);
+var from = toMatch ? toMatch[1] : '';
+var to = toMatch ? toMatch[2] : '';
+
+var wp = null;
+if (text.indexOf('work') !== -1) wp = 'Work';
+if (text.indexOf('personal') !== -1) wp = 'Personal';
+
+var date = parseDate(text);
+
+pendingData = { type: 'mileage', finish: finish, from: from, to: to, wp: wp, date: date };
+
+if (!finish) {
+updateStatus('Could not find odometer reading. Try again.', true);
+return;
+}
+
+if (!wp) {
+document.getElementById('wpPrompt').classList.add('active');
+} else {
+submitData(pendingData);
+}
+}
+
+function parseGas(text) {
+var priceMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i) || text.match(/\$?\s*(\d+(?:\.\d+)?)/);
+var price = priceMatch ? parseFloat(priceMatch[1]) : null;
+
+var litersMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:liters?|l\b)/i);
+var liters = litersMatch ? parseFloat(litersMatch[1]) : null;
+
+var odometerMatch = text.match(/\b(\d{5,})\b/);
+var odometer = odometerMatch ? parseInt(odometerMatch[1]) : null;
+
+var date = parseDate(text);
+
+pendingData = { type: 'gas', price: price, liters: liters, odometer: odometer, date: date };
+
+if (!price || !liters || !odometer) {
+updateStatus('Missing info. Need: price, liters, odometer.', true);
+return;
+}
+
+submitData(pendingData);
+}
+
+function parseExpense(text) {
+var amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i) || text.match(/\$?\s*(\d+(?:\.\d+)?)/);
+var amount = amountMatch ? parseFloat(amountMatch[1]) : null;
+
+var category = null;
+var categoryKeyword = null;
+for (var keyword in categoryKeywords) {
+if (text.indexOf(keyword) !== -1) {
+category = categoryKeywords[keyword];
+categoryKeyword = keyword;
+break;
+}
+}
+
+var autoPersonalCategories = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
+var autoCorpCategories = ['CME', 'License/Membership Fees', 'Corp'];
+
+var corpPersonal = null;
+var paidOn = null;
+
+if (autoPersonalCategories.indexOf(category) !== -1) {
+corpPersonal = 'Personal';
+paidOn = 'Personal Card';
+} else if (autoCorpCategories.indexOf(category) !== -1) {
+corpPersonal = 'Corp';
+paidOn = 'Corp Card';
+} else {
+if (text.indexOf('corp on personal card') !== -1 || text.indexOf('corporate on personal card') !== -1) {
+corpPersonal = 'Corp';
+paidOn = 'Personal Card';
+} else if (text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) {
+corpPersonal = 'Corp';
+paidOn = 'Corp Card';
+} else if (text.indexOf('personal') !== -1) {
+corpPersonal = 'Personal';
+paidOn = 'Personal Card';
+}
+}
+
+var words = text.split(/\s+/).filter(function(w) { return w.length > 1; });
+var vendor = words.slice(0, 2).join(' ');
+
+var date = parseDate(text);
+
+pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: text, date: date };
+
+if (!amount) {
+updateStatus('Could not find amount. Try again.', true);
+return;
+}
+
+if (!category) {
+updateStatus('Could not identify category. Try again.', true);
+return;
+}
+
+if (!corpPersonal) {
+document.getElementById('corpPrompt').classList.add('active');
+} else {
+submitData(pendingData);
+}
+}
+
+function parseAllergy(text) {
+var right = null;
+var left = null;
+var notes = '';
+
+if (text.indexOf('both') !== -1) {
+var doseMatch = text.match(/(\d+(?:\.\d+)?)/);
+if (doseMatch) {
+right = parseFloat(doseMatch[1]);
+left = right;
+}
+} else {
+var rightMatch = text.match(/(\d+(?:\.\d+)?)\s*right/i) || text.match(/right\s*(\d+(?:\.\d+)?)/i);
+var leftMatch = text.match(/(\d+(?:\.\d+)?)\s*left/i) || text.match(/left\s*(\d+(?:\.\d+)?)/i);
+if (rightMatch) right = parseFloat(rightMatch[1]);
+if (leftMatch) left = parseFloat(leftMatch[1]);
+}
+
+var notesMatch = text.match(/(?:both|left|right)\s+\d*\.?\d*\s*(.*)/i);
+if (notesMatch && notesMatch[1]) {
+notes = notesMatch[1].trim();
+}
+
+var date = parseDate(text);
+
+pendingData = { type: 'allergy', right: right, left: left, notes: notes, date: date };
+
+if (!right && !left) {
+updateStatus('Could not find dose. Try again.', true);
+return;
+}
+
+submitData(pendingData);
+}
+
+function parseDate(text) {
+if (text.indexOf('yesterday') !== -1) {
+var d = new Date();
+d.setDate(d.getDate() - 1);
+return d;
+}
+return null;
+}
+
+function selectWP(value) {
+document.getElementById('wpPrompt').classList.remove('active');
+pendingData.wp = value;
+submitData(pendingData);
+}
+
+function selectCorp(value) {
+document.getElementById('corpPrompt').classList.remove('active');
+pendingData.corpPersonal = value;
+pendingData.paidOn = (value === 'Corp') ? 'Corp Card' : 'Personal Card';
+submitData(pendingData);
+}
+
+function submitData(data) {
+var scriptUrl = localStorage.getItem('scriptUrl');
+
+if (!scriptUrl) {
+updateStatus('Please configure the Google Apps Script URL first', true);
+document.getElementById('configSection').classList.remove('hidden');
+return;
+}
+
+updateStatus('Saving...');
+
+fetch(scriptUrl, {
+method: 'POST',
+mode: 'no-cors',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(data)
+}).then(function() {
+var summary = '';
+if (data.type === 'mileage') summary = 'Mileage: ' + data.finish + ' km, ' + data.from + ' to ' + data.to + ', ' + data.wp;
+else if (data.type === 'gas') summary = 'Gas: $' + data.price + ', ' + data.liters + 'L';
+else if (data.type === 'expense') summary = 'Expense: $' + data.amount + ' ' + data.category;
+else if (data.type === 'allergy') summary = 'Allergy: R=' + data.right + ', L=' + data.left;
+updateStatus('✅ ' + summary);
+}).catch(function(error) {
+updateStatus('Error: ' + error.message, true);
+});
+}
+</script>
+
+</body>
+</html>
