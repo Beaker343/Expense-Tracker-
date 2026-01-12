@@ -49,19 +49,19 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 </div>
 
 <div class="buttons" id="mainButtons">
-<button class="btn btn-mileage" id="btnMileage" onclick="startEntry('mileage')">
+<button class="btn btn-mileage" onclick="startEntry('mileage')">
 <span class="icon">🚗</span>
 <span>Mileage</span>
 </button>
-<button class="btn btn-gas" id="btnGas" onclick="startEntry('gas')">
+<button class="btn btn-gas" onclick="startEntry('gas')">
 <span class="icon">⛽</span>
 <span>Gas</span>
 </button>
-<button class="btn btn-expense" id="btnExpense" onclick="startEntry('expense')">
+<button class="btn btn-expense" onclick="startEntry('expense')">
 <span class="icon">💳</span>
 <span>Expense</span>
 </button>
-<button class="btn btn-allergy" id="btnAllergy" onclick="startEntry('allergy')">
+<button class="btn btn-allergy" onclick="startEntry('allergy')">
 <span class="icon">💉</span>
 <span>Allergy</span>
 </button>
@@ -105,7 +105,6 @@ var categoryKeywords = {
 'repair': 'Repairs & Maintenance',
 'repairs': 'Repairs & Maintenance',
 'maintenance': 'Repairs & Maintenance',
-'car repair': 'Repairs & Maintenance',
 'car wash': 'Auto Wash',
 'auto wash': 'Auto Wash',
 'wash': 'Auto Wash',
@@ -116,9 +115,7 @@ var categoryKeywords = {
 'breakfast': 'Meals & Entertainment',
 'entertainment': 'Meals & Entertainment',
 'promotion': 'Promotions/Gifts/Tickets',
-'promotions': 'Promotions/Gifts/Tickets',
 'gift': 'Promotions/Gifts/Tickets',
-'gifts': 'Promotions/Gifts/Tickets',
 'ticket': 'Promotions/Gifts/Tickets',
 'tickets': 'Promotions/Gifts/Tickets',
 'office': 'Office/Postage/Stationery',
@@ -130,12 +127,10 @@ var categoryKeywords = {
 'flight': 'Travel Fares',
 'airfare': 'Travel Fares',
 'fare': 'Travel Fares',
-'fares': 'Travel Fares',
 'phone': 'Phone/Internet',
 'internet': 'Phone/Internet',
 'other business': 'Other Business',
 'buh': 'BUH',
-'home maintenance buh': 'BUH',
 'cme': 'CME',
 'course': 'CME',
 'book': 'CME',
@@ -143,16 +138,13 @@ var categoryKeywords = {
 'education': 'CME',
 'membership': 'License/Membership Fees',
 'dues': 'License/Membership Fees',
-'medical license': 'License/Membership Fees',
+'license': 'License/Membership Fees',
 'non-buh': 'NON-BUH',
 'non buh': 'NON-BUH',
-'home maintenance non-buh': 'NON-BUH',
 'donation': 'Donations',
 'donations': 'Donations',
 'charitable': 'Donations',
 'special': 'Special Expenses',
-'special expense': 'Special Expenses',
-'special expenses': 'Special Expenses',
 'fyi': 'FYI'
 };
 
@@ -175,10 +167,6 @@ updateStatus('🎤 ' + text);
 recognition.onerror = function(event) {
 updateStatus('Error: ' + event.error, true);
 showMainButtons();
-};
-
-recognition.onend = function() {
-// Do nothing - we handle everything in stopListening
 };
 }
 
@@ -241,29 +229,21 @@ document.getElementById('recordingLabel').classList.remove('hidden');
 hideMainButtons();
 
 if (recognition) {
-try {
-recognition.start();
-} catch(e) {
-updateStatus('Mic error. Try again.', true);
-showMainButtons();
-}
+try { recognition.start(); } catch(e) {}
 } else {
-updateStatus('Speech recognition not supported', true);
+updateStatus('Speech not supported', true);
 showMainButtons();
 }
 }
 
 function stopListening() {
 if (recognition) {
-try {
-recognition.stop();
-} catch(e) {}
+try { recognition.stop(); } catch(e) {}
 }
 showMainButtons();
 
 var transcript = spokenText.trim().toLowerCase();
-
-if (transcript === '') {
+if (!transcript) {
 updateStatus('No speech detected. Try again.', true);
 return;
 }
@@ -289,21 +269,15 @@ var from = toMatch ? toMatch[1] : '';
 var to = toMatch ? toMatch[2] : '';
 
 var wp = null;
-if (text.indexOf('work') !== -1 || text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) {
-wp = 'Work';
-} else if (text.indexOf('personal') !== -1) {
-wp = 'Personal';
-}
+if (text.indexOf('work') !== -1 || text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) wp = 'Work';
+else if (text.indexOf('personal') !== -1) wp = 'Personal';
 
-var date = parseDate(text);
-
-pendingData = { type: 'mileage', finish: finish, from: from, to: to, wp: wp, date: date };
+pendingData = { type: 'mileage', finish: finish, from: from, to: to, wp: wp };
 
 if (!finish) {
-updateStatus('Could not find odometer reading. Try again.', true);
+updateStatus('Could not find odometer. Try again.', true);
 return;
 }
-
 if (!wp) {
 document.getElementById('wpPrompt').classList.add('active');
 } else {
@@ -312,7 +286,7 @@ submitData(pendingData);
 }
 
 function parseGas(text) {
-var priceMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i) || text.match(/\$?\s*(\d+(?:\.\d+)?)/);
+var priceMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
 var price = priceMatch ? parseFloat(priceMatch[1]) : null;
 
 var litersMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:liters?|l\b)/i);
@@ -321,20 +295,17 @@ var liters = litersMatch ? parseFloat(litersMatch[1]) : null;
 var odometerMatch = text.match(/\b(\d{5,})\b/);
 var odometer = odometerMatch ? parseInt(odometerMatch[1]) : null;
 
-var date = parseDate(text);
-
-pendingData = { type: 'gas', price: price, liters: liters, odometer: odometer, date: date };
+pendingData = { type: 'gas', price: price, liters: liters, odometer: odometer };
 
 if (!price || !liters || !odometer) {
-updateStatus('Missing info. Need: price, liters, odometer.', true);
+updateStatus('Need: price, liters, odometer.', true);
 return;
 }
-
 submitData(pendingData);
 }
 
 function parseExpense(text) {
-var amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i) || text.match(/\$?\s*(\d+(?:\.\d+)?)/);
+var amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
 var amount = amountMatch ? parseFloat(amountMatch[1]) : null;
 
 var category = null;
@@ -345,20 +316,19 @@ break;
 }
 }
 
-var autoPersonalCategories = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
-var autoCorpCategories = ['CME', 'License/Membership Fees'];
+var autoPersonal = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
+var autoCorp = ['CME', 'License/Membership Fees'];
 
 var corpPersonal = null;
 var paidOn = null;
 
-if (autoPersonalCategories.indexOf(category) !== -1) {
+if (autoPersonal.indexOf(category) !== -1) {
 corpPersonal = 'Personal';
 paidOn = 'Personal Card';
-} else if (autoCorpCategories.indexOf(category) !== -1) {
+} else if (autoCorp.indexOf(category) !== -1) {
 corpPersonal = 'Corp';
 paidOn = 'Corp Card';
-} else {
-if (text.indexOf('corp on personal card') !== -1 || text.indexOf('corporate on personal card') !== -1) {
+} else if (text.indexOf('corp on personal') !== -1) {
 corpPersonal = 'Corp';
 paidOn = 'Personal Card';
 } else if (text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) {
@@ -368,25 +338,19 @@ paidOn = 'Corp Card';
 corpPersonal = 'Personal';
 paidOn = 'Personal Card';
 }
-}
 
-var words = text.split(/\s+/).filter(function(w) { return w.length > 1; });
-var vendor = words.slice(0, 2).join(' ');
+var vendor = text.split(/\s+/).slice(0, 2).join(' ');
 
-var date = parseDate(text);
-
-pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: text, date: date };
+pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: text };
 
 if (!amount) {
-updateStatus('Could not find amount. Try again.', true);
+updateStatus('Could not find amount.', true);
 return;
 }
-
 if (!category) {
-updateStatus('Could not identify category. Try again.', true);
+updateStatus('Could not find category.', true);
 return;
 }
-
 if (!corpPersonal) {
 document.getElementById('corpPrompt').classList.add('active');
 } else {
@@ -412,30 +376,13 @@ if (rightMatch) right = parseFloat(rightMatch[1]);
 if (leftMatch) left = parseFloat(leftMatch[1]);
 }
 
-var notesMatch = text.match(/(?:both|left|right)\s+\d*\.?\d*\s*(.*)/i);
-if (notesMatch && notesMatch[1]) {
-notes = notesMatch[1].trim();
-}
-
-var date = parseDate(text);
-
-pendingData = { type: 'allergy', right: right, left: left, notes: notes, date: date };
+pendingData = { type: 'allergy', right: right, left: left, notes: notes };
 
 if (!right && !left) {
-updateStatus('Could not find dose. Try again.', true);
+updateStatus('Could not find dose.', true);
 return;
 }
-
 submitData(pendingData);
-}
-
-function parseDate(text) {
-if (text.indexOf('yesterday') !== -1) {
-var d = new Date();
-d.setDate(d.getDate() - 1);
-return d;
-}
-return null;
 }
 
 function selectWP(value) {
@@ -453,30 +400,41 @@ submitData(pendingData);
 
 function submitData(data) {
 var scriptUrl = localStorage.getItem('scriptUrl');
-
 if (!scriptUrl) {
-updateStatus('Please configure the Google Apps Script URL first', true);
+updateStatus('Please set Script URL', true);
 document.getElementById('configSection').classList.remove('hidden');
 return;
 }
 
 updateStatus('Saving...');
 
-fetch(scriptUrl, {
-method: 'POST',
-mode: 'no-cors',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(data)
-}).then(function() {
+var params = [];
+for (var key in data) {
+if (data[key] !== null && data[key] !== undefined) {
+params.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
+}
+}
+
+var url = scriptUrl + '?' + params.join('&');
+
+var img = new Image();
+img.onload = function() {
 var summary = '';
 if (data.type === 'mileage') summary = 'Mileage: ' + data.finish + ' km, ' + data.from + ' to ' + data.to + ', ' + data.wp;
 else if (data.type === 'gas') summary = 'Gas: $' + data.price + ', ' + data.liters + 'L';
 else if (data.type === 'expense') summary = 'Expense: $' + data.amount + ' ' + data.category;
 else if (data.type === 'allergy') summary = 'Allergy: R=' + data.right + ', L=' + data.left;
 updateStatus('✅ ' + summary);
-}).catch(function(error) {
-updateStatus('Error: ' + error.message, true);
-});
+};
+img.onerror = function() {
+var summary = '';
+if (data.type === 'mileage') summary = 'Mileage: ' + data.finish + ' km, ' + data.from + ' to ' + data.to + ', ' + data.wp;
+else if (data.type === 'gas') summary = 'Gas: $' + data.price + ', ' + data.liters + 'L';
+else if (data.type === 'expense') summary = 'Expense: $' + data.amount + ' ' + data.category;
+else if (data.type === 'allergy') summary = 'Allergy: R=' + data.right + ', L=' + data.left;
+updateStatus('✅ ' + summary);
+};
+img.src = url;
 }
 </script>
 
