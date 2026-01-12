@@ -20,6 +20,7 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 .btn-allergy { background: #43e97b; }
 .btn span { display: block; }
 .btn .icon { font-size: 28px; margin-bottom: 8px; }
+.btn-stop { background: #ff4757; padding: 20px; font-size: 18px; margin-bottom: 20px; width: 100%; }
 .status { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 15px; color: white; min-height: 80px; }
 .status-label { font-size: 11px; opacity: 0.7; margin-bottom: 8px; }
 .status-text { font-size: 14px; }
@@ -33,6 +34,8 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 .popup .btn2 { background: #f5576c; }
 .success { color: #43e97b; }
 .error { color: #f5576c; }
+.listening { animation: pulse 1s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 </style>
 </head>
 <body>
@@ -45,7 +48,7 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 <button onclick="saveConfig()">Save & Hide</button>
 </div>
 
-<div class="buttons">
+<div class="buttons" id="mainButtons">
 <button class="btn btn-mileage" onclick="startEntry('mileage')">
 <span class="icon">🚗</span>
 <span>Mileage</span>
@@ -63,6 +66,10 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 <span>Allergy</span>
 </button>
 </div>
+
+<button class="btn btn-stop hidden" id="stopButton" onclick="stopListening()">
+🛑 Tap When Done Speaking
+</button>
 
 <div class="status">
 <div class="status-label">Status</div>
@@ -89,6 +96,7 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 var recognition;
 var currentType = null;
 var pendingData = {};
+var fullTranscript = '';
 
 var categoryKeywords = {
 'parking': 'Parking',
@@ -151,18 +159,33 @@ var categoryKeywords = {
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 recognition = new SpeechRecognition();
-recognition.continuous = false;
-recognition.interimResults = false;
+recognition.continuous = true;
+recognition.interimResults = true;
 recognition.lang = 'en-US';
 
 recognition.onresult = function(event) {
-var transcript = event.results[0][0].transcript.toLowerCase();
-updateStatus('Heard: "' + transcript + '"');
-processVoiceInput(transcript);
+var interim = '';
+var final = '';
+for (var i = 0; i < event.results.length; i++) {
+if (event.results[i].isFinal) {
+final += event.results[i][0].transcript + ' ';
+} else {
+interim += event.results[i][0].transcript;
+}
+}
+fullTranscript = final;
+updateStatus('🎤 ' + fullTranscript + interim);
 };
 
 recognition.onerror = function(event) {
 updateStatus('Error: ' + event.error, true);
+showMainButtons();
+};
+
+recognition.onend = function() {
+if (document.getElementById('stopButton').classList.contains('hidden') === false) {
+recognition.start();
+}
 };
 }
 
@@ -189,24 +212,53 @@ el.textContent = text;
 el.className = 'status-text' + (isError ? ' error' : '');
 }
 
+function showMainButtons() {
+document.getElementById('mainButtons').classList.remove('hidden');
+document.getElementById('stopButton').classList.add('hidden');
+}
+
+function hideMainButtons() {
+document.getElementById('mainButtons').classList.add('hidden');
+document.getElementById('stopButton').classList.remove('hidden');
+}
+
 function startEntry(type) {
 currentType = type;
 pendingData = {};
+fullTranscript = '';
 
 var labels = {
-mileage: '🎤 Listening... (e.g., "207608 home to LMH work")',
-gas: '🎤 Listening... (e.g., "45 dollars 52 liters 207500")',
-expense: '🎤 Listening... (e.g., "CME 200 dollars CAEP")',
-allergy: '🎤 Listening... (e.g., "0.3 both")'
+mileage: '🎤 Speak now... (e.g., "207608 home to LMH work")',
+gas: '🎤 Speak now... (e.g., "45 dollars 52 liters 207500")',
+expense: '🎤 Speak now... (e.g., "CME 200 dollars CAEP")',
+allergy: '🎤 Speak now... (e.g., "0.3 both")'
 };
 
 updateStatus(labels[type]);
+hideMainButtons();
 
 if (recognition) {
 recognition.start();
 } else {
 updateStatus('Speech recognition not supported', true);
+showMainButtons();
 }
+}
+
+function stopListening() {
+if (recognition) {
+recognition.stop();
+}
+showMainButtons();
+
+var transcript = fullTranscript.trim().toLowerCase();
+if (transcript === '') {
+updateStatus('No speech detected. Try again.', true);
+return;
+}
+
+updateStatus('Processing: "' + transcript + '"');
+processVoiceInput(transcript);
 }
 
 function processVoiceInput(transcript) {
