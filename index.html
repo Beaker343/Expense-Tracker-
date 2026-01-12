@@ -1,442 +1,111 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>Expense Tracker</title>
-<style type="text/css">
-body { font-family: -apple-system, sans-serif; background: #1a1a2e; margin: 0; padding: 20px; min-height: 100vh; box-sizing: border-box; }
-h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
-.config { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; }
-.config label { color: white; font-size: 12px; display: block; margin-bottom: 5px; }
-.config input { width: 100%; padding: 10px; border: none; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
-.config button { margin-top: 10px; padding: 10px 20px; background: #4facfe; color: white; border: none; border-radius: 5px; font-size: 14px; }
-.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-.btn { padding: 25px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 15px; color: white; text-align: center; }
-.btn-mileage { background: #667eea; }
-.btn-gas { background: #f5576c; }
-.btn-expense { background: #4facfe; }
-.btn-allergy { background: #43e97b; }
-.btn span { display: block; }
-.btn .icon { font-size: 28px; margin-bottom: 8px; }
-.btn-stop { background: #ff4757; padding: 20px; font-size: 18px; margin-top: 20px; width: 100%; border: none; border-radius: 15px; color: white; font-weight: bold; }
-.recording-label { color: #ff4757; text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 10px; }
-.status { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 15px; color: white; min-height: 80px; }
-.status-label { font-size: 11px; opacity: 0.7; margin-bottom: 8px; }
-.status-text { font-size: 14px; }
-.hidden { display: none; }
-.disabled { opacity: 0.4; pointer-events: none; }
-.overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; }
-.overlay.active { display: flex; }
-.popup { background: #1a1a2e; padding: 25px; border-radius: 15px; text-align: center; margin: 20px; }
-.popup h2 { color: white; margin: 0 0 20px 0; font-size: 18px; }
-.popup button { padding: 15px 30px; margin: 5px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; color: white; min-width: 100px; }
-.popup .btn1 { background: #4facfe; }
-.popup .btn2 { background: #f5576c; }
-.success { color: #43e97b; }
-.error { color: #f5576c; }
-</style>
-</head>
-<body>
-
-<h1>📊 Expense Tracker</h1>
-
-<div class="config" id="configSection">
-<label>Google Apps Script URL:</label>
-<input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/...">
-<button onclick="saveConfig()">Save & Hide</button>
-</div>
-
-<div class="buttons" id="mainButtons">
-<button class="btn btn-mileage" onclick="startEntry('mileage')">
-<span class="icon">🚗</span>
-<span>Mileage</span>
-</button>
-<button class="btn btn-gas" onclick="startEntry('gas')">
-<span class="icon">⛽</span>
-<span>Gas</span>
-</button>
-<button class="btn btn-expense" onclick="startEntry('expense')">
-<span class="icon">💳</span>
-<span>Expense</span>
-</button>
-<button class="btn btn-allergy" onclick="startEntry('allergy')">
-<span class="icon">💉</span>
-<span>Allergy</span>
-</button>
-</div>
-
-<div class="recording-label hidden" id="recordingLabel">🔴 Recording: MILEAGE</div>
-
-<div class="status">
-<div class="status-label">Status</div>
-<div class="status-text" id="statusText">Tap a button to start</div>
-</div>
-
-<button class="btn btn-stop hidden" id="stopButton" onclick="stopListening()">
-🛑 Tap When Done Speaking
-</button>
-
-<div class="overlay" id="wpPrompt">
-<div class="popup">
-<h2>Work or Personal?</h2>
-<button class="btn1" onclick="selectWP('Work')">Work</button>
-<button class="btn2" onclick="selectWP('Personal')">Personal</button>
-</div>
-</div>
-
-<div class="overlay" id="corpPrompt">
-<div class="popup">
-<h2>Corp or Personal?</h2>
-<button class="btn1" onclick="selectCorp('Corp')">Corp</button>
-<button class="btn2" onclick="selectCorp('Personal')">Personal</button>
-</div>
-</div>
-
-<script>
-var recognition;
-var currentType = null;
-var pendingData = {};
-var spokenText = '';
-
-var categoryKeywords = {
-'parking': 'Parking',
-'repair': 'Repairs & Maintenance',
-'repairs': 'Repairs & Maintenance',
-'maintenance': 'Repairs & Maintenance',
-'car wash': 'Auto Wash',
-'auto wash': 'Auto Wash',
-'wash': 'Auto Wash',
-'meals': 'Meals & Entertainment',
-'meal': 'Meals & Entertainment',
-'dinner': 'Meals & Entertainment',
-'lunch': 'Meals & Entertainment',
-'breakfast': 'Meals & Entertainment',
-'entertainment': 'Meals & Entertainment',
-'promotion': 'Promotions/Gifts/Tickets',
-'gift': 'Promotions/Gifts/Tickets',
-'ticket': 'Promotions/Gifts/Tickets',
-'tickets': 'Promotions/Gifts/Tickets',
-'office': 'Office/Postage/Stationery',
-'postage': 'Office/Postage/Stationery',
-'stationery': 'Office/Postage/Stationery',
-'hotel': 'Hotels',
-'hotels': 'Hotels',
-'travel': 'Travel Fares',
-'flight': 'Travel Fares',
-'airfare': 'Travel Fares',
-'fare': 'Travel Fares',
-'phone': 'Phone/Internet',
-'internet': 'Phone/Internet',
-'other business': 'Other Business',
-'buh': 'BUH',
-'cme': 'CME',
-'course': 'CME',
-'book': 'CME',
-'subscription': 'CME',
-'education': 'CME',
-'membership': 'License/Membership Fees',
-'dues': 'License/Membership Fees',
-'license': 'License/Membership Fees',
-'non-buh': 'NON-BUH',
-'non buh': 'NON-BUH',
-'donation': 'Donations',
-'donations': 'Donations',
-'charitable': 'Donations',
-'special': 'Special Expenses',
-'fyi': 'FYI'
-};
-
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-recognition = new SpeechRecognition();
-recognition.continuous = true;
-recognition.interimResults = true;
-recognition.lang = 'en-US';
-
-recognition.onresult = function(event) {
-var text = '';
-for (var i = 0; i < event.results.length; i++) {
-text += event.results[i][0].transcript;
-}
-spokenText = text;
-updateStatus('🎤 ' + text);
-};
-
-recognition.onerror = function(event) {
-updateStatus('Error: ' + event.error, true);
-showMainButtons();
-};
+function doGet(e) {
+  if (e.parameter.type) {
+    return handleRequest(e.parameter);
+  }
+  return ContentService.createTextOutput(JSON.stringify({status: 'ok'}))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
-window.onload = function() {
-var savedUrl = localStorage.getItem('scriptUrl');
-if (savedUrl) {
-document.getElementById('scriptUrl').value = savedUrl;
-document.getElementById('configSection').classList.add('hidden');
-}
-};
-
-function saveConfig() {
-var url = document.getElementById('scriptUrl').value.trim();
-if (url) {
-localStorage.setItem('scriptUrl', url);
-document.getElementById('configSection').classList.add('hidden');
-updateStatus('Configuration saved!');
-}
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    return handleRequest(data);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({success: false, error: err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
-function updateStatus(text, isError) {
-var el = document.getElementById('statusText');
-el.textContent = text;
-el.className = 'status-text' + (isError ? ' error' : '');
+function handleRequest(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var result = {};
+  
+  switch(data.type) {
+    case 'mileage':
+      result = addMileage(ss, data);
+      break;
+    case 'gas':
+      result = addGas(ss, data);
+      break;
+    case 'expense':
+      result = addExpense(ss, data);
+      break;
+    case 'allergy':
+      result = addAllergy(ss, data);
+      break;
+    default:
+      result = {success: false, error: 'Unknown type'};
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
-function showMainButtons() {
-document.getElementById('mainButtons').classList.remove('disabled');
-document.getElementById('stopButton').classList.add('hidden');
-document.getElementById('recordingLabel').classList.add('hidden');
+function findFirstEmptyRow(sheet) {
+  var dates = sheet.getRange('A:A').getValues();
+  for (var i = 1; i < dates.length; i++) {
+    if (dates[i][0] === '' || dates[i][0] === null) {
+      return i + 1;
+    }
+  }
+  return dates.length + 1;
 }
 
-function hideMainButtons() {
-document.getElementById('mainButtons').classList.add('disabled');
-document.getElementById('stopButton').classList.remove('hidden');
+function addMileage(ss, data) {
+  var sheet = ss.getSheetByName('Mileage');
+  var newRow = findFirstEmptyRow(sheet);
+  
+  sheet.getRange(newRow, 1).setValue(data.date || new Date());
+  sheet.getRange(newRow, 3).setValue(data.finish);
+  sheet.getRange(newRow, 4).setValue(data.from || '');
+  sheet.getRange(newRow, 5).setValue(data.to || '');
+  sheet.getRange(newRow, 7).setValue(data.wp);
+  
+  return {success: true, message: 'Mileage added', row: newRow};
 }
 
-function startEntry(type) {
-currentType = type;
-pendingData = {};
-spokenText = '';
-
-var labels = {
-mileage: '🎤 Speak now... (e.g., "207608 home to bank work")',
-gas: '🎤 Speak now... (e.g., "45 dollars 52 liters 207500")',
-expense: '🎤 Speak now... (e.g., "CME 200 dollars CAEP")',
-allergy: '🎤 Speak now... (e.g., "0.3 both")'
-};
-
-var recordLabels = {
-mileage: '🔴 Recording: MILEAGE',
-gas: '🔴 Recording: GAS',
-expense: '🔴 Recording: EXPENSE',
-allergy: '🔴 Recording: ALLERGY'
-};
-
-updateStatus(labels[type]);
-document.getElementById('recordingLabel').textContent = recordLabels[type];
-document.getElementById('recordingLabel').classList.remove('hidden');
-hideMainButtons();
-
-if (recognition) {
-try { recognition.start(); } catch(e) {}
-} else {
-updateStatus('Speech not supported', true);
-showMainButtons();
-}
+function addGas(ss, data) {
+  var sheet = ss.getSheetByName('Gas');
+  var newRow = findFirstEmptyRow(sheet);
+  
+  sheet.getRange(newRow, 1).setValue(data.date || new Date());
+  sheet.getRange(newRow, 2).setValue(data.odometer);
+  sheet.getRange(newRow, 3).setValue(data.liters);
+  sheet.getRange(newRow, 4).setValue(data.price);
+  
+  return {success: true, message: 'Gas added', row: newRow};
 }
 
-function stopListening() {
-if (recognition) {
-try { recognition.stop(); } catch(e) {}
-}
-showMainButtons();
-
-var transcript = spokenText.trim().toLowerCase();
-if (!transcript) {
-updateStatus('No speech detected. Try again.', true);
-return;
-}
-
-updateStatus('Processing: "' + transcript + '"');
-processVoiceInput(transcript);
-}
-
-function processVoiceInput(transcript) {
-if (currentType === 'mileage') parseMileage(transcript);
-else if (currentType === 'gas') parseGas(transcript);
-else if (currentType === 'expense') parseExpense(transcript);
-else if (currentType === 'allergy') parseAllergy(transcript);
+function addExpense(ss, data) {
+  var sheet = ss.getSheetByName('Expenses');
+  var newRow = findFirstEmptyRow(sheet);
+  
+  sheet.getRange(newRow, 1).setValue(data.date || new Date());
+  sheet.getRange(newRow, 2).setValue(data.amount);
+  sheet.getRange(newRow, 3).setValue(data.vendor || '');
+  sheet.getRange(newRow, 4).setValue(data.description || '');
+  sheet.getRange(newRow, 5).setValue(data.category);
+  sheet.getRange(newRow, 6).setValue(data.corpPersonal);
+  sheet.getRange(newRow, 7).setValue(data.paidOn);
+  
+  return {success: true, message: 'Expense added', row: newRow};
 }
 
-function parseMileage(text) {
-var odometerMatch = text.match(/\b(\d{5,})\b/);
-var finish = odometerMatch ? parseInt(odometerMatch[1]) : null;
-
-var cleanText = text.replace(/\b(the|a|an)\b/g, '').replace(/\s+/g, ' ');
-var toMatch = cleanText.match(/(?:from\s+)?(\w+)\s+to\s+(\w+)/i);
-var from = toMatch ? toMatch[1] : '';
-var to = toMatch ? toMatch[2] : '';
-
-var wp = null;
-if (text.indexOf('work') !== -1 || text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) wp = 'Work';
-else if (text.indexOf('personal') !== -1) wp = 'Personal';
-
-pendingData = { type: 'mileage', finish: finish, from: from, to: to, wp: wp };
-
-if (!finish) {
-updateStatus('Could not find odometer. Try again.', true);
-return;
-}
-if (!wp) {
-document.getElementById('wpPrompt').classList.add('active');
-} else {
-submitData(pendingData);
-}
+function addAllergy(ss, data) {
+  var sheet = ss.getSheetByName('Allergy Shots');
+  var newRow = findFirstEmptyRow(sheet);
+  
+  sheet.getRange(newRow, 1).setValue(data.date || new Date());
+  sheet.getRange(newRow, 2).setValue(data.right);
+  sheet.getRange(newRow, 3).setValue(data.left);
+  sheet.getRange(newRow, 4).setValue(data.notes || '');
+  
+  return {success: true, message: 'Allergy shot added', row: newRow};
 }
 
-function parseGas(text) {
-var priceMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
-var price = priceMatch ? parseFloat(priceMatch[1]) : null;
-
-var litersMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:liters?|l\b)/i);
-var liters = litersMatch ? parseFloat(litersMatch[1]) : null;
-
-var odometerMatch = text.match(/\b(\d{5,})\b/);
-var odometer = odometerMatch ? parseInt(odometerMatch[1]) : null;
-
-pendingData = { type: 'gas', price: price, liters: liters, odometer: odometer };
-
-if (!price || !liters || !odometer) {
-updateStatus('Need: price, liters, odometer.', true);
-return;
+function testScript() {
+  Logger.log('Script is working!');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  Logger.log('Spreadsheet name: ' + ss.getName());
+  Logger.log('Sheets: ' + ss.getSheets().map(function(s) { return s.getName(); }).join(', '));
 }
-submitData(pendingData);
-}
-
-function parseExpense(text) {
-var amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
-var amount = amountMatch ? parseFloat(amountMatch[1]) : null;
-
-var category = null;
-for (var keyword in categoryKeywords) {
-if (text.indexOf(keyword) !== -1) {
-category = categoryKeywords[keyword];
-break;
-}
-}
-
-var autoPersonal = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
-var autoCorp = ['CME', 'License/Membership Fees'];
-
-var corpPersonal = null;
-var paidOn = null;
-
-if (autoPersonal.indexOf(category) !== -1) {
-corpPersonal = 'Personal';
-paidOn = 'Personal Card';
-} else if (autoCorp.indexOf(category) !== -1) {
-corpPersonal = 'Corp';
-paidOn = 'Corp Card';
-} else if (text.indexOf('corp on personal') !== -1) {
-corpPersonal = 'Corp';
-paidOn = 'Personal Card';
-} else if (text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) {
-corpPersonal = 'Corp';
-paidOn = 'Corp Card';
-} else if (text.indexOf('personal') !== -1) {
-corpPersonal = 'Personal';
-paidOn = 'Personal Card';
-}
-
-var vendor = text.split(/\s+/).slice(0, 2).join(' ');
-
-pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: text };
-
-if (!amount) {
-updateStatus('Could not find amount.', true);
-return;
-}
-if (!category) {
-updateStatus('Could not find category.', true);
-return;
-}
-if (!corpPersonal) {
-document.getElementById('corpPrompt').classList.add('active');
-} else {
-submitData(pendingData);
-}
-}
-
-function parseAllergy(text) {
-var right = null;
-var left = null;
-var notes = '';
-
-if (text.indexOf('both') !== -1) {
-var doseMatch = text.match(/(\d+(?:\.\d+)?)/);
-if (doseMatch) {
-right = parseFloat(doseMatch[1]);
-left = right;
-}
-} else {
-var rightMatch = text.match(/(\d+(?:\.\d+)?)\s*right/i) || text.match(/right\s*(\d+(?:\.\d+)?)/i);
-var leftMatch = text.match(/(\d+(?:\.\d+)?)\s*left/i) || text.match(/left\s*(\d+(?:\.\d+)?)/i);
-if (rightMatch) right = parseFloat(rightMatch[1]);
-if (leftMatch) left = parseFloat(leftMatch[1]);
-}
-
-pendingData = { type: 'allergy', right: right, left: left, notes: notes };
-
-if (!right && !left) {
-updateStatus('Could not find dose.', true);
-return;
-}
-submitData(pendingData);
-}
-
-function selectWP(value) {
-document.getElementById('wpPrompt').classList.remove('active');
-pendingData.wp = value;
-submitData(pendingData);
-}
-
-function selectCorp(value) {
-document.getElementById('corpPrompt').classList.remove('active');
-pendingData.corpPersonal = value;
-pendingData.paidOn = (value === 'Corp') ? 'Corp Card' : 'Personal Card';
-submitData(pendingData);
-}
-
-function submitData(data) {
-var scriptUrl = localStorage.getItem('scriptUrl');
-if (!scriptUrl) {
-updateStatus('Please set Script URL', true);
-document.getElementById('configSection').classList.remove('hidden');
-return;
-}
-
-updateStatus('Saving...');
-
-var params = [];
-for (var key in data) {
-if (data[key] !== null && data[key] !== undefined) {
-params.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
-}
-}
-
-var url = scriptUrl + '?' + params.join('&');
-
-var img = new Image();
-img.onload = function() {
-var summary = '';
-if (data.type === 'mileage') summary = 'Mileage: ' + data.finish + ' km, ' + data.from + ' to ' + data.to + ', ' + data.wp;
-else if (data.type === 'gas') summary = 'Gas: $' + data.price + ', ' + data.liters + 'L';
-else if (data.type === 'expense') summary = 'Expense: $' + data.amount + ' ' + data.category;
-else if (data.type === 'allergy') summary = 'Allergy: R=' + data.right + ', L=' + data.left;
-updateStatus('✅ ' + summary);
-};
-img.onerror = function() {
-var summary = '';
-if (data.type === 'mileage') summary = 'Mileage: ' + data.finish + ' km, ' + data.from + ' to ' + data.to + ', ' + data.wp;
-else if (data.type === 'gas') summary = 'Gas: $' + data.price + ', ' + data.liters + 'L';
-else if (data.type === 'expense') summary = 'Expense: $' + data.amount + ' ' + data.category;
-else if (data.type === 'allergy') summary = 'Allergy: R=' + data.right + ', L=' + data.left;
-updateStatus('✅ ' + summary);
-};
-img.src = url;
-}
-</script>
-
-</body>
-</html>
