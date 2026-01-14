@@ -10,27 +10,33 @@ body { font-family: -apple-system, sans-serif; background: #1a1a2e; margin: 0; p
 h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 .config { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; }
 .config label { color: white; font-size: 12px; display: block; margin-bottom: 5px; }
-.config input { width: 100%; padding: 10px; border: none; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
-.config button { margin-top: 10px; padding: 10px 20px; background: #4facfe; color: white; border: none; border-radius: 5px; font-size: 14px; }
+.config input { width: 100%; padding: 10px; border: none; border-radius: 5px; font-size: 14px; box-sizing: border-box; margin-bottom: 10px; }
+.config button { padding: 10px 15px; background: #4facfe; color: white; border: none; border-radius: 5px; font-size: 14px; margin-right: 10px; }
+.config .btn-test { background: #43e97b; }
+.config .btn-hide { background: #666; }
 .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-.btn { padding: 25px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 15px; color: white; text-align: center; }
+.btn { padding: 20px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 15px; color: white; text-align: center; }
 .btn-mileage { background: #667eea; }
 .btn-gas { background: #f5576c; }
 .btn-expense { background: #4facfe; }
 .btn-allergy { background: #43e97b; }
 .btn span { display: block; }
-.btn .icon { font-size: 28px; margin-bottom: 8px; }
+.btn .icon { font-size: 48px; margin-bottom: 5px; }
+.btn .label { font-size: 14px; }
 .btn-stop { background: #ff4757; padding: 20px; font-size: 18px; margin-top: 20px; width: 100%; border: none; border-radius: 15px; color: white; font-weight: bold; }
 .btn-correct { background: #ffa502; padding: 12px 20px; font-size: 14px; margin-top: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
+.btn-retry { background: #ff6b81; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .recording-label { color: #ff4757; text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 10px; }
 .status { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 15px; color: white; min-height: 80px; }
 .status-label { font-size: 11px; opacity: 0.7; margin-bottom: 8px; }
-.status-text { font-size: 14px; }
+.status-text { font-size: 13px; white-space: pre-line; line-height: 1.4; }
+.offline-banner { background: #ff4757; color: white; text-align: center; padding: 10px; border-radius: 10px; margin-bottom: 15px; display: none; }
+.offline-banner.show { display: block; }
 .hidden { display: none; }
 .disabled { opacity: 0.4; pointer-events: none; }
 .overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; }
 .overlay.active { display: flex; }
-.popup { background: #1a1a2e; padding: 25px; border-radius: 15px; text-align: center; margin: 20px; max-width: 350px; width: 90%; }
+.popup { background: #1a1a2e; padding: 25px; border-radius: 15px; text-align: center; margin: 20px; max-width: 350px; width: 90%; max-height: 80vh; overflow-y: auto; }
 .popup h2 { color: white; margin: 0 0 20px 0; font-size: 18px; }
 .popup button { padding: 15px 30px; margin: 5px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; color: white; min-width: 100px; }
 .popup .btn1 { background: #4facfe; }
@@ -42,34 +48,40 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 .edit-field input, .edit-field select { width: 100%; padding: 10px; border: none; border-radius: 5px; font-size: 16px; box-sizing: border-box; }
 .success { color: #43e97b; }
 .error { color: #f5576c; }
+.warning { color: #ffa502; }
+.action-buttons { margin-top: 10px; }
 </style>
 </head>
 <body>
+
+<div class="offline-banner" id="offlineBanner">📵 No internet connection</div>
 
 <h1>📊 Expense Tracker</h1>
 
 <div class="config" id="configSection">
 <label>Google Apps Script URL:</label>
 <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/...">
-<button onclick="saveConfig()">Save & Hide</button>
+<button onclick="saveConfig()">Save</button>
+<button class="btn-test" onclick="testConnection()">Test</button>
+<button class="btn-hide" onclick="hideConfig()">Hide</button>
 </div>
 
 <div class="buttons" id="mainButtons">
 <button class="btn btn-mileage" onclick="startEntry('mileage')">
 <span class="icon">🚗</span>
-<span>Mileage</span>
+<span class="label">Mileage</span>
 </button>
 <button class="btn btn-gas" onclick="startEntry('gas')">
 <span class="icon">⛽</span>
-<span>Gas</span>
+<span class="label">Gas</span>
 </button>
 <button class="btn btn-expense" onclick="startEntry('expense')">
 <span class="icon">💳</span>
-<span>Expense</span>
+<span class="label">Expense</span>
 </button>
 <button class="btn btn-allergy" onclick="startEntry('allergy')">
 <span class="icon">💉</span>
-<span>Allergy</span>
+<span class="label">Allergy</span>
 </button>
 </div>
 
@@ -84,9 +96,14 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 🛑 Tap When Done Speaking
 </button>
 
+<div class="action-buttons">
 <button class="btn btn-correct hidden" id="correctButton" onclick="showCorrectForm()">
-✏️ Correct Entry
+✏️ Correct
 </button>
+<button class="btn btn-retry hidden" id="retryButton" onclick="retryLastSubmit()">
+🔄 Retry
+</button>
+</div>
 
 <div class="overlay" id="wpPrompt">
 <div class="popup">
@@ -120,7 +137,11 @@ var pendingData = {};
 var lastSavedData = {};
 var lastSavedRow = null;
 var lastSavedSheet = null;
+var lastSubmitData = null;
 var spokenText = '';
+var submitAttempts = 0;
+var maxRetries = 3;
+var requestTimeout = 15000;
 
 var categoryKeywords = {
 'parking': 'Parking',
@@ -172,6 +193,18 @@ var categoryKeywords = {
 
 var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals & Entertainment', 'Promotions/Gifts/Tickets', 'Office/Postage/Stationery', 'Hotels', 'Travel Fares', 'Phone/Internet', 'Other Business', 'BUH', 'CME', 'License/Membership Fees', 'NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
 
+function updateOnlineStatus() {
+var banner = document.getElementById('offlineBanner');
+if (navigator.onLine) {
+banner.classList.remove('show');
+} else {
+banner.classList.add('show');
+}
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 recognition = new SpeechRecognition();
@@ -189,16 +222,20 @@ updateStatus('🎤 ' + text);
 };
 
 recognition.onerror = function(event) {
-updateStatus('Error: ' + event.error, true);
+updateStatus('Mic error: ' + event.error + '. Try again.', true);
 showMainButtons();
 };
 }
 
 window.onload = function() {
+updateOnlineStatus();
 var savedUrl = localStorage.getItem('scriptUrl');
 if (savedUrl) {
 document.getElementById('scriptUrl').value = savedUrl;
 document.getElementById('configSection').classList.add('hidden');
+updateStatus('Ready. Tap a button to start.');
+} else {
+updateStatus('Enter your Script URL, tap Save, then Test.');
 }
 };
 
@@ -206,15 +243,64 @@ function saveConfig() {
 var url = document.getElementById('scriptUrl').value.trim();
 if (url) {
 localStorage.setItem('scriptUrl', url);
-document.getElementById('configSection').classList.add('hidden');
-updateStatus('Configuration saved!');
+updateStatus('URL saved! Tap Test to verify.', false, 'success');
 }
 }
 
-function updateStatus(text, isError) {
+function hideConfig() {
+document.getElementById('configSection').classList.add('hidden');
+}
+
+function testConnection() {
+var url = document.getElementById('scriptUrl').value.trim();
+if (!url) {
+updateStatus('Enter a Script URL first.', true);
+return;
+}
+
+if (!navigator.onLine) {
+updateStatus('No internet. Connect and try again.', true);
+return;
+}
+
+updateStatus('Testing...', false, 'warning');
+
+var testUrl = url + '?type=test&t=' + Date.now();
+
+var img = new Image();
+var done = false;
+
+var timeout = setTimeout(function() {
+if (!done) {
+done = true;
+updateStatus('⚠️ Slow or no response. Check URL.', true);
+}
+}, 10000);
+
+img.onload = img.onerror = function() {
+if (!done) {
+done = true;
+clearTimeout(timeout);
+localStorage.setItem('scriptUrl', url);
+updateStatus('✅ Connected! Tap Hide to close settings.', false, 'success');
+}
+};
+
+img.src = testUrl;
+}
+
+function updateStatus(text, isError, statusType) {
 var el = document.getElementById('statusText');
 el.textContent = text;
-el.className = 'status-text' + (isError ? ' error' : '');
+if (isError) {
+el.className = 'status-text error';
+} else if (statusType === 'success') {
+el.className = 'status-text success';
+} else if (statusType === 'warning') {
+el.className = 'status-text warning';
+} else {
+el.className = 'status-text';
+}
 }
 
 function showMainButtons() {
@@ -236,26 +322,41 @@ function hideCorrectButton() {
 document.getElementById('correctButton').classList.add('hidden');
 }
 
+function showRetryButton() {
+document.getElementById('retryButton').classList.remove('hidden');
+}
+
+function hideRetryButton() {
+document.getElementById('retryButton').classList.add('hidden');
+}
+
 function startEntry(type) {
+if (!navigator.onLine) {
+updateStatus('No internet. Connect and try again.', true);
+return;
+}
+
 currentType = type;
 pendingData = {};
 spokenText = '';
 hideCorrectButton();
+hideRetryButton();
 lastSavedRow = null;
 lastSavedSheet = null;
+submitAttempts = 0;
 
 var labels = {
-mileage: '🎤 Say: "207608 home to hospital work for conference"',
-gas: '🎤 Say: "45 dollars 52 liters 207500"',
-expense: '🎤 Say: "CME 200 dollars CAEP course"',
-allergy: '🎤 Say: "0.3 both"'
+mileage: '🎤 Date (if empty = today)\nFinish\nFrom\nTo\nWork or Personal\nFor (description)',
+gas: '🎤 Date (if empty = today)\nOdometer\nLitres\nPrice',
+expense: '🎤 Date (if empty = today)\nAmount\nVendor\nDescription\nCategory\nCorp or Personal\nCredit card used\n\nPersonal: FYI, Non-BUH, Donations, Special Expenses\nAuto: Repairs & Maintenance, Parking, Auto Wash\nCorp: Office, CME, BUH, Travel Fares, Hotels, Meals & Entertainment, Promotions/Gifts/Tickets',
+allergy: '🎤 Date (if empty = today)\nRight, Left or Both amount\nNotes'
 };
 
 var recordLabels = {
-mileage: '🔴 Recording: MILEAGE',
-gas: '🔴 Recording: GAS',
-expense: '🔴 Recording: EXPENSE',
-allergy: '🔴 Recording: ALLERGY'
+mileage: '🔴 MILEAGE',
+gas: '🔴 GAS',
+expense: '🔴 EXPENSE',
+allergy: '🔴 ALLERGY'
 };
 
 updateStatus(labels[type]);
@@ -266,7 +367,7 @@ hideMainButtons();
 if (recognition) {
 try { recognition.start(); } catch(e) {}
 } else {
-updateStatus('Speech not supported', true);
+updateStatus('Speech not supported.', true);
 showMainButtons();
 }
 }
@@ -283,7 +384,7 @@ updateStatus('No speech detected. Try again.', true);
 return;
 }
 
-updateStatus('Processing: "' + transcript + '"');
+updateStatus('Processing...');
 processVoiceInput(transcript);
 }
 
@@ -384,7 +485,7 @@ description = forMatch[1]
 pendingData = { type: 'mileage', finish: finish, from: from, to: to, wp: wp, date: date, description: description };
 
 if (!finish) {
-updateStatus('Could not find odometer. Try again.', true);
+updateStatus('Need odometer (5+ digits).', true);
 return;
 }
 if (!wp) {
@@ -398,7 +499,7 @@ function parseGas(text) {
 var priceMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
 var price = priceMatch ? parseFloat(priceMatch[1]) : null;
 
-var litersMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:liters?|l\b)/i);
+var litersMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:liters?|litres?|l\b)/i);
 var liters = litersMatch ? parseFloat(litersMatch[1]) : null;
 
 var odometerMatch = text.match(/\b(\d{5,})\b/);
@@ -409,7 +510,11 @@ var date = parseDate(text);
 pendingData = { type: 'gas', price: price, liters: liters, odometer: odometer, date: date };
 
 if (!price || !liters || !odometer) {
-updateStatus('Need: price, liters, odometer.', true);
+var missing = [];
+if (!price) missing.push('price');
+if (!liters) missing.push('litres');
+if (!odometer) missing.push('odometer');
+updateStatus('Need: ' + missing.join(', '), true);
 return;
 }
 submitData(pendingData, false);
@@ -450,17 +555,23 @@ corpPersonal = 'Personal';
 paidOn = 'Personal Card';
 }
 
-var vendor = text.split(/\s+/).slice(0, 2).join(' ');
+// Extract vendor - look for "at [vendor]" or "from [vendor]"
+var vendor = '';
+var vendorMatch = text.match(/(?:at|from)\s+(\w+(?:\s+\w+)?)/i);
+if (vendorMatch) {
+vendor = vendorMatch[1];
+}
+
 var date = parseDate(text);
 
 pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: text, date: date };
 
 if (!amount) {
-updateStatus('Could not find amount.', true);
+updateStatus('Need amount (X dollars).', true);
 return;
 }
 if (!category) {
-updateStatus('Could not find category.', true);
+updateStatus('Need category (parking, CME, meals, etc).', true);
 return;
 }
 if (!corpPersonal) {
@@ -488,12 +599,18 @@ if (rightMatch) right = parseFloat(rightMatch[1]);
 if (leftMatch) left = parseFloat(leftMatch[1]);
 }
 
+// Extract notes - anything after the dose info
+var notesMatch = text.match(/(?:both|right|left)\s*\d*\.?\d*\s+(.+)$/i);
+if (notesMatch) {
+notes = notesMatch[1].trim();
+}
+
 var date = parseDate(text);
 
 pendingData = { type: 'allergy', right: right, left: left, notes: notes, date: date };
 
 if (!right && !left) {
-updateStatus('Could not find dose.', true);
+updateStatus('Need dose. Say "0.3 both" or "0.3 right"', true);
 return;
 }
 submitData(pendingData, false);
@@ -529,14 +646,14 @@ else if (lastSavedData.type === 'gas') {
 title = 'Edit Gas';
 html = '<div class="edit-field"><label>Date</label><input type="date" id="editDate" value="' + lastSavedData.date + '"></div>';
 html += '<div class="edit-field"><label>Odometer</label><input type="number" id="editOdometer" value="' + lastSavedData.odometer + '"></div>';
-html += '<div class="edit-field"><label>Liters</label><input type="number" step="0.1" id="editLiters" value="' + lastSavedData.liters + '"></div>';
+html += '<div class="edit-field"><label>Litres</label><input type="number" step="0.1" id="editLiters" value="' + lastSavedData.liters + '"></div>';
 html += '<div class="edit-field"><label>Price ($)</label><input type="number" step="0.01" id="editPrice" value="' + lastSavedData.price + '"></div>';
 }
 else if (lastSavedData.type === 'expense') {
 title = 'Edit Expense';
 html = '<div class="edit-field"><label>Date</label><input type="date" id="editDate" value="' + lastSavedData.date + '"></div>';
 html += '<div class="edit-field"><label>Amount ($)</label><input type="number" step="0.01" id="editAmount" value="' + lastSavedData.amount + '"></div>';
-html += '<div class="edit-field"><label>Vendor</label><input type="text" id="editVendor" value="' + lastSavedData.vendor + '"></div>';
+html += '<div class="edit-field"><label>Vendor</label><input type="text" id="editVendor" value="' + (lastSavedData.vendor || '') + '"></div>';
 html += '<div class="edit-field"><label>Category</label><select id="editCategory">';
 for (var i = 0; i < allCategories.length; i++) {
 html += '<option value="' + allCategories[i] + '"' + (lastSavedData.category === allCategories[i] ? ' selected' : '') + '>' + allCategories[i] + '</option>';
@@ -548,8 +665,8 @@ html += '<div class="edit-field"><label>Description</label><input type="text" id
 else if (lastSavedData.type === 'allergy') {
 title = 'Edit Allergy';
 html = '<div class="edit-field"><label>Date</label><input type="date" id="editDate" value="' + lastSavedData.date + '"></div>';
-html += '<div class="edit-field"><label>Right</label><input type="number" step="0.05" id="editRight" value="' + lastSavedData.right + '"></div>';
-html += '<div class="edit-field"><label>Left</label><input type="number" step="0.05" id="editLeft" value="' + lastSavedData.left + '"></div>';
+html += '<div class="edit-field"><label>Right</label><input type="number" step="0.05" id="editRight" value="' + (lastSavedData.right || '') + '"></div>';
+html += '<div class="edit-field"><label>Left</label><input type="number" step="0.05" id="editLeft" value="' + (lastSavedData.left || '') + '"></div>';
 html += '<div class="edit-field"><label>Notes</label><input type="text" id="editNotes" value="' + (lastSavedData.notes || '') + '"></div>';
 }
 
@@ -586,12 +703,11 @@ correctedData.description = document.getElementById('editExpenseDescription').va
 }
 else if (lastSavedData.type === 'allergy') {
 correctedData.date = document.getElementById('editDate').value;
-correctedData.right = parseFloat(document.getElementById('editRight').value);
-correctedData.left = parseFloat(document.getElementById('editLeft').value);
+correctedData.right = parseFloat(document.getElementById('editRight').value) || null;
+correctedData.left = parseFloat(document.getElementById('editLeft').value) || null;
 correctedData.notes = document.getElementById('editNotes').value;
 }
 
-// Add delete info for old row
 if (lastSavedRow && lastSavedSheet) {
 correctedData.deleteRow = lastSavedRow;
 correctedData.deleteSheet = lastSavedSheet;
@@ -605,71 +721,101 @@ function cancelCorrection() {
 document.getElementById('editPrompt').classList.remove('active');
 }
 
+function retryLastSubmit() {
+if (lastSubmitData) {
+submitAttempts = 0;
+submitData(lastSubmitData.data, lastSubmitData.isCorrection);
+}
+}
+
 function submitData(data, isCorrection) {
 var scriptUrl = localStorage.getItem('scriptUrl');
 if (!scriptUrl) {
-updateStatus('Please set Script URL', true);
+updateStatus('No Script URL. Set it in settings.', true);
 document.getElementById('configSection').classList.remove('hidden');
 return;
 }
 
-updateStatus('Saving...');
+if (!navigator.onLine) {
+updateStatus('No internet. Connect and tap Retry.', true);
+lastSubmitData = { data: data, isCorrection: isCorrection };
+showRetryButton();
+return;
+}
+
+submitAttempts++;
+lastSubmitData = { data: data, isCorrection: isCorrection };
+
+updateStatus('Saving... (' + submitAttempts + '/' + maxRetries + ')', false, 'warning');
 hideCorrectButton();
+hideRetryButton();
 
 var params = [];
 for (var key in data) {
-if (data[key] !== null && data[key] !== undefined) {
+if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
 params.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
 }
 }
+params.push('t=' + Date.now());
 
 var url = scriptUrl + '?' + params.join('&');
 
-// Store for potential correction (without delete info)
 var dataToStore = JSON.parse(JSON.stringify(data));
 delete dataToStore.deleteRow;
 delete dataToStore.deleteSheet;
 lastSavedData = dataToStore;
 
-var img = new Image();
-img.onload = function() {
-showSuccess(data, isCorrection);
-};
-img.onerror = function() {
-showSuccess(data, isCorrection);
-};
-img.src = url;
-}
-
-function showSuccess(data, isCorrection) {
-var summary = '';
-if (data.type === 'mileage') summary = 'Mileage: ' + data.finish + ' km, ' + data.from + ' to ' + data.to + ', ' + data.wp;
-else if (data.type === 'gas') summary = 'Gas: $' + data.price + ', ' + data.liters + 'L';
-else if (data.type === 'expense') summary = 'Expense: $' + data.amount + ' ' + data.category;
-else if (data.type === 'allergy') summary = 'Allergy: R=' + data.right + ', L=' + data.left;
-
-if (isCorrection) {
-updateStatus('✅ Corrected: ' + summary);
-} else {
-updateStatus('✅ ' + summary);
-}
-
-// Track row info for corrections
 var sheetMap = {
 'mileage': 'Mileage',
 'gas': 'Gas',
 'expense': 'Expenses',
 'allergy': 'Allergy Shots'
 };
-lastSavedSheet = sheetMap[data.type];
 
-// We estimate the row - it will be the first empty row
-// This is a limitation since we can't get the actual row back from the image request
-// For now, we'll track it client-side
-if (!data.deleteRow) {
-lastSavedRow = 2; // Default estimate - user should correct immediately if needed
+var done = false;
+
+var timeout = setTimeout(function() {
+if (!done) {
+done = true;
+if (submitAttempts < maxRetries) {
+submitData(data, isCorrection);
+} else {
+updateStatus('⚠️ Slow network. Tap Retry or check sheet.', false, 'warning');
+lastSavedSheet = sheetMap[data.type];
+lastSavedRow = 2;
+showRetryButton();
+showCorrectButton();
+}
+}
+}, requestTimeout);
+
+var img = new Image();
+img.onload = img.onerror = function() {
+if (!done) {
+done = true;
+clearTimeout(timeout);
+lastSavedSheet = sheetMap[data.type];
+lastSavedRow = 2;
+showSuccess(data, isCorrection);
+}
+};
+img.src = url;
 }
 
+function showSuccess(data, isCorrection) {
+var summary = '';
+if (data.type === 'mileage') summary = data.finish + ' km, ' + data.from + '→' + data.to + ', ' + data.wp;
+else if (data.type === 'gas') summary = '$' + data.price + ', ' + data.liters + 'L';
+else if (data.type === 'expense') summary = '$' + data.amount + ' ' + data.category;
+else if (data.type === 'allergy') summary = 'R=' + (data.right || '-') + ', L=' + (data.left || '-');
+
+if (isCorrection) {
+updateStatus('✅ Fixed: ' + summary, false, 'success');
+} else {
+updateStatus('✅ ' + summary, false, 'success');
+}
+
+hideRetryButton();
 showCorrectButton();
 }
 </script>
