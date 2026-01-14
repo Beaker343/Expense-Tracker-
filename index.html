@@ -454,9 +454,46 @@ return formatDate(d);
 return formatDate(today);
 }
 
+function parseSpokenNumber(text) {
+// Convert word numbers to digits
+var ones = {'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,'nineteen':19};
+var tens = {'twenty':20,'thirty':30,'forty':40,'fifty':50,'sixty':60,'seventy':70,'eighty':80,'ninety':90};
+
+// First check for actual digits
+var digitMatch = text.match(/\b(\d{5,})\b/);
+if (digitMatch) return parseInt(digitMatch[1]);
+
+// Try to parse word numbers
+var total = 0;
+var current = 0;
+var words = text.toLowerCase().split(/[\s,-]+/);
+
+for (var i = 0; i < words.length; i++) {
+var w = words[i];
+if (ones[w] !== undefined) {
+current += ones[w];
+} else if (tens[w] !== undefined) {
+current += tens[w];
+} else if (w === 'hundred') {
+current *= 100;
+} else if (w === 'thousand') {
+current *= 1000;
+total += current;
+current = 0;
+} else if (w === 'million') {
+current *= 1000000;
+total += current;
+current = 0;
+}
+}
+total += current;
+
+if (total >= 10000) return total;
+return null;
+}
+
 function parseMileage(text) {
-var odometerMatch = text.match(/\b(\d{5,})\b/);
-var finish = odometerMatch ? parseInt(odometerMatch[1]) : null;
+var finish = parseSpokenNumber(text);
 
 var cleanText = text.replace(/\b(the|a|an)\b/g, '').replace(/\s+/g, ' ');
 var toMatch = cleanText.match(/(?:from\s+)?(\w+)\s+to\s+(\w+)/i);
@@ -485,7 +522,7 @@ description = forMatch[1]
 pendingData = { type: 'mileage', finish: finish, from: from, to: to, wp: wp, date: date, description: description };
 
 if (!finish) {
-updateStatus('Need odometer (5+ digits).', true);
+updateStatus('Could not find odometer. Tap 🚗 to try again.', true);
 return;
 }
 if (!wp) {
@@ -494,7 +531,6 @@ document.getElementById('wpPrompt').classList.add('active');
 submitData(pendingData, false);
 }
 }
-
 function parseGas(text) {
 var priceMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
 var price = priceMatch ? parseFloat(priceMatch[1]) : null;
