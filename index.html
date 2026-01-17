@@ -693,65 +693,73 @@ function parseGas(text) {
 }
 
 function parseExpense(text) {
-var amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
-var amount = amountMatch ? parseFloat(amountMatch[1]) : null;
+  // Amount: Try $XX format first (like "$45"), then XX dollars format
+  var amount = null;
+  var amountMatch = text.match(/\$\s*(\d+(?:\.\d+)?)/i);
+  if (amountMatch) {
+    amount = parseFloat(amountMatch[1]);
+  } else {
+    amountMatch = text.match(/(\d+(?:\.\d+)?)\s*dollars?/i);
+    if (amountMatch) {
+      amount = parseFloat(amountMatch[1]);
+    }
+  }
 
-var category = null;
-for (var keyword in categoryKeywords) {
-if (text.indexOf(keyword) !== -1) {
-category = categoryKeywords[keyword];
-break;
+  var category = null;
+  for (var keyword in categoryKeywords) {
+    if (text.indexOf(keyword) !== -1) {
+      category = categoryKeywords[keyword];
+      break;
+    }
+  }
+
+  var autoPersonal = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
+  var autoCorp = ['CME', 'License/Membership Fees'];
+
+  var corpPersonal = null;
+  var paidOn = null;
+
+  if (autoPersonal.indexOf(category) !== -1) {
+    corpPersonal = 'Personal';
+    paidOn = 'Personal Card';
+  } else if (autoCorp.indexOf(category) !== -1) {
+    corpPersonal = 'Corp';
+    paidOn = 'Corp Card';
+  } else if (text.indexOf('corp on personal') !== -1) {
+    corpPersonal = 'Corp';
+    paidOn = 'Personal Card';
+  } else if (text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) {
+    corpPersonal = 'Corp';
+    paidOn = 'Corp Card';
+  } else if (text.indexOf('personal') !== -1) {
+    corpPersonal = 'Personal';
+    paidOn = 'Personal Card';
+  }
+
+  var vendor = '';
+  var vendorMatch = text.match(/(?:at|from)\s+(\w+(?:\s+\w+)?)/i);
+  if (vendorMatch) {
+    vendor = vendorMatch[1];
+  }
+
+  var date = parseDate(text);
+
+  pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: text, date: date };
+
+  if (!amount) {
+    updateStatus('Need amount (X dollars). Tap 💳 to try again.', true);
+    return;
+  }
+  if (!category) {
+    updateStatus('Need category. Tap 💳 to try again.', true);
+    return;
+  }
+  if (!corpPersonal) {
+    document.getElementById('corpPrompt').classList.add('active');
+  } else {
+    submitData(pendingData, false);
+  }
 }
-}
-
-var autoPersonal = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
-var autoCorp = ['CME', 'License/Membership Fees'];
-
-var corpPersonal = null;
-var paidOn = null;
-
-if (autoPersonal.indexOf(category) !== -1) {
-corpPersonal = 'Personal';
-paidOn = 'Personal Card';
-} else if (autoCorp.indexOf(category) !== -1) {
-corpPersonal = 'Corp';
-paidOn = 'Corp Card';
-} else if (text.indexOf('corp on personal') !== -1) {
-corpPersonal = 'Corp';
-paidOn = 'Personal Card';
-} else if (text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) {
-corpPersonal = 'Corp';
-paidOn = 'Corp Card';
-} else if (text.indexOf('personal') !== -1) {
-corpPersonal = 'Personal';
-paidOn = 'Personal Card';
-}
-
-var vendor = '';
-var vendorMatch = text.match(/(?:at|from)\s+(\w+(?:\s+\w+)?)/i);
-if (vendorMatch) {
-vendor = vendorMatch[1];
-}
-
-var date = parseDate(text);
-
-pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: text, date: date };
-
-if (!amount) {
-updateStatus('Need amount (X dollars). Tap 💳 to try again.', true);
-return;
-}
-if (!category) {
-updateStatus('Need category. Tap 💳 to try again.', true);
-return;
-}
-if (!corpPersonal) {
-document.getElementById('corpPrompt').classList.add('active');
-} else {
-submitData(pendingData, false);
-}
-}
-
 function parseAllergy(text) {
 var right = null;
 var left = null;
