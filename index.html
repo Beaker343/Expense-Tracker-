@@ -180,6 +180,8 @@ var audioContext;
 var analyser;
 var microphone;
 var animationFrame;
+var micRetryCount = 0;
+var maxMicRetries = 3;
 
 var prompts = {
 mileage: 'Date (if empty = today)\nFinish\nFrom\nTo\nWork or Personal\nFor (description)',
@@ -257,6 +259,10 @@ recognition.continuous = true;
 recognition.interimResults = true;
 recognition.lang = 'en-US';
 
+recognition.onstart = function() {
+startAudioAnalysis();
+};
+
 recognition.onresult = function(event) {
 var text = '';
 for (var i = 0; i < event.results.length; i++) {
@@ -267,20 +273,15 @@ document.getElementById('transcriptText').textContent = '🎤 ' + text;
 pulseActiveButton();
 };
 
-var micRetryCount = 0;
-var maxMicRetries = 3;
-
 recognition.onerror = function(event) {
 stopAudioAnalysis();
 
-// Auto-retry on transient errors
 if ((event.error === 'aborted' || event.error === 'no-speech') && micRetryCount < maxMicRetries) {
 micRetryCount++;
 updateStatus('Restarting mic... (' + micRetryCount + '/' + maxMicRetries + ')', false, 'warning');
 setTimeout(function() {
 try {
 recognition.start();
-startAudioAnalysis();
 } catch(e) {
 updateStatus('Mic error. Tap button to try again.', true);
 showMainButtons();
@@ -307,6 +308,15 @@ document.getElementById('configSection').classList.add('hidden');
 updateStatus('Ready. Tap a button to start.');
 } else {
 updateStatus('Enter your Script URL, tap Save, then Test.');
+}
+
+// Pre-warm microphone permission
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+navigator.mediaDevices.getUserMedia({ audio: true })
+.then(function(stream) {
+stream.getTracks().forEach(function(track) { track.stop(); });
+})
+.catch(function() {});
 }
 };
 
@@ -510,7 +520,6 @@ return;
 }
 
 currentType = type;
-micRetryCount = 0;
 pendingData = {};
 spokenText = '';
 hideCorrectButton();
@@ -519,6 +528,7 @@ hideRetryButton();
 lastSavedRow = null;
 lastSavedSheet = null;
 submitAttempts = 0;
+micRetryCount = 0;
 
 var recordLabels = {
 mileage: '🔴 MILEAGE',
@@ -535,10 +545,14 @@ hideMainButtons();
 setActiveButton(type);
 
 if (recognition) {
+setTimeout(function() {
 try { 
-recognition.start(); 
-startAudioAnalysis();
-} catch(e) {}
+recognition.start();
+} catch(e) {
+updateStatus('Mic error. Tap button to try again.', true);
+showMainButtons();
+}
+}, 150);
 } else {
 updateStatus('Speech not supported.', true);
 showMainButtons();
