@@ -706,9 +706,11 @@ function parseExpense(text) {
   }
 
   var category = null;
+  var matchedKeyword = '';
   for (var keyword in categoryKeywords) {
     if (text.indexOf(keyword) !== -1) {
       category = categoryKeywords[keyword];
+      matchedKeyword = keyword;
       break;
     }
   }
@@ -736,15 +738,44 @@ function parseExpense(text) {
     paidOn = 'Personal Card';
   }
 
+  // Vendor: try "at X" or "from X" first, then try to extract from concatenated text
   var vendor = '';
   var vendorMatch = text.match(/(?:at|from)\s+(\w+(?:\s+\w+)?)/i);
   if (vendorMatch) {
     vendor = vendorMatch[1];
+  } else if (matchedKeyword) {
+    // Try to extract vendor from text before the category keyword
+    // e.g., "igagroceriesfyi" -> look for known store patterns or text before category
+    var beforeCategory = text.split(matchedKeyword)[0];
+    // Remove amount/dollar references
+    beforeCategory = beforeCategory.replace(/\$?\d+\.?\d*\s*(dollars?)?/gi, '').trim();
+    // Common store names to look for
+    var stores = ['iga', 'costco', 'walmart', 'safeway', 'superstore', 'save on', 'saveon', 'amazon', 'staples', 'home depot', 'homedepot', 'canadian tire', 'canadiantire', 'shoppers', 'london drugs', 'londondrugs'];
+    for (var i = 0; i < stores.length; i++) {
+      if (beforeCategory.indexOf(stores[i]) !== -1) {
+        vendor = stores[i].charAt(0).toUpperCase() + stores[i].slice(1);
+        beforeCategory = beforeCategory.replace(stores[i], '');
+        break;
+      }
+    }
+  }
+
+  // Clean up description - remove parsed elements
+  var description = text
+    .replace(/\$?\d+\.?\d*\s*(dollars?)?/gi, '')  // Remove amount
+    .replace(new RegExp(matchedKeyword, 'gi'), '') // Remove category keyword
+    .replace(/\b(corp|corporate|personal|at|from)\b/gi, '') // Remove other keywords
+    .replace(/\s+/g, ' ')  // Collapse multiple spaces
+    .trim();
+  
+  // If vendor was found, remove it from description too
+  if (vendor) {
+    description = description.replace(new RegExp(vendor, 'gi'), '').trim();
   }
 
   var date = parseDate(text);
 
-  pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: text, date: date };
+  pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: description, date: date };
 
   if (!amount) {
     updateStatus('Need amount (X dollars). Tap 💳 to try again.', true);
