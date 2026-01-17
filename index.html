@@ -253,9 +253,6 @@ spokenText = text;
 document.getElementById('transcriptText').textContent = '🎤 ' + text;
 };
 
-var micRetryCount = 0;
-var maxMicRetries = 3;
-
 recognition.onerror = function(event) {
 if ((event.error === 'aborted' || event.error === 'no-speech') && micRetryCount < maxMicRetries) {
 micRetryCount++;
@@ -432,7 +429,6 @@ return;
 }
 
 currentType = type;
-micRetryCount = 0;
 pendingData = {};
 spokenText = '';
 hideCorrectButton();
@@ -441,6 +437,7 @@ hideRetryButton();
 lastSavedRow = null;
 lastSavedSheet = null;
 submitAttempts = 0;
+micRetryCount = 0;
 
 var recordLabels = {
 mileage: '🔴 MILEAGE',
@@ -465,7 +462,6 @@ updateStatus('Mic error. Tap button to try again.', true);
 showMainButtons();
 }
 }, 250);
-}
 } else {
 updateStatus('Speech not supported.', true);
 showMainButtons();
@@ -941,11 +937,11 @@ correctedData.notes = document.getElementById('editNotes').value;
 }
 
 if (lastSavedSheet) {
-  correctedData.deleteSheet = lastSavedSheet;
-  if (lastSavedData.type === 'mileage') correctedData.originalValue = lastSavedData.finish;
-  if (lastSavedData.type === 'gas') correctedData.originalValue = lastSavedData.odometer;
-  if (lastSavedData.type === 'expense') correctedData.originalValue = lastSavedData.amount;
-  if (lastSavedData.type === 'allergy') correctedData.originalValue = lastSavedData.right;
+correctedData.deleteSheet = lastSavedSheet;
+if (lastSavedData.type === 'mileage') correctedData.originalValue = lastSavedData.finish;
+if (lastSavedData.type === 'gas') correctedData.originalValue = lastSavedData.odometer;
+if (lastSavedData.type === 'expense') correctedData.originalValue = lastSavedData.amount;
+if (lastSavedData.type === 'allergy') correctedData.originalValue = lastSavedData.right;
 }
 
 document.getElementById('editPrompt').classList.remove('active');
@@ -999,6 +995,7 @@ var url = scriptUrl + '?' + params.join('&');
 var dataToStore = JSON.parse(JSON.stringify(data));
 delete dataToStore.deleteRow;
 delete dataToStore.deleteSheet;
+delete dataToStore.originalValue;
 lastSavedData = dataToStore;
 
 var sheetMap = {
