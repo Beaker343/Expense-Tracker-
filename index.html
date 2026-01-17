@@ -651,27 +651,37 @@ submitData(pendingData, false);
 }
 
 function parseGas(text) {
-var priceMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
-var price = priceMatch ? parseFloat(priceMatch[1]) : null;
+  // Price: handle "45 dollars", "45$", and "$45" formats
+  var priceMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
+  if (!priceMatch) {
+    priceMatch = text.match(/\$\s*(\d+(?:\.\d+)?)/i);
+  }
+  var price = priceMatch ? parseFloat(priceMatch[1]) : null;
 
-var litersMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:liters?|litres?|l\b)/i);
-var liters = litersMatch ? parseFloat(litersMatch[1]) : null;
+  // Liters: handle "2.165 liters", "2.165L", "2.165 L"
+  var litersMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:liters?|litres?|l)\b/i);
+  var liters = litersMatch ? parseFloat(litersMatch[1]) : null;
 
-var odometer = parseSpokenNumber(text);
+  // Odometer: first try number + km (1-7 digits), then fall back to 5+ digit number alone
+  var odometerMatch = text.match(/(\d{1,7})\s*(?:km|kilometers?|kilometres?)\b/i);
+  if (!odometerMatch) {
+    odometerMatch = text.match(/\b(\d{5,7})\b/);
+  }
+  var odometer = odometerMatch ? parseInt(odometerMatch[1]) : null;
 
-var date = parseDate(text);
+  var date = parseDate(text);
 
-pendingData = { type: 'gas', price: price, liters: liters, odometer: odometer, date: date };
+  pendingData = { type: 'gas', price: price, liters: liters, odometer: odometer, date: date };
 
-if (!price || !liters || !odometer) {
-var missing = [];
-if (!price) missing.push('price');
-if (!liters) missing.push('litres');
-if (!odometer) missing.push('odometer');
-updateStatus('Need: ' + missing.join(', ') + '. Tap ⛽ to try again.', true);
-return;
-}
-submitData(pendingData, false);
+  if (!price || !liters || !odometer) {
+    var missing = [];
+    if (!price) missing.push('price');
+    if (!liters) missing.push('liters');
+    if (!odometer) missing.push('odometer');
+    updateStatus('Need ' + missing.join(', ') + '. Tap to try again.', true);
+    return;
+  }
+  submitData(pendingData, false);
 }
 
 function parseExpense(text) {
