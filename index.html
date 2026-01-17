@@ -785,8 +785,8 @@ document.getElementById('deletePrompt').classList.remove('active');
 function executeDelete() {
 document.getElementById('deletePrompt').classList.remove('active');
 
-if (!lastSavedRow || !lastSavedSheet) {
-updateStatus('Cannot delete - row info missing.', true);
+if (!lastSavedSheet || !lastSavedData.type) {
+updateStatus('Cannot delete - info missing.', true);
 return;
 }
 
@@ -796,14 +796,20 @@ updateStatus('No Script URL.', true);
 return;
 }
 
+var deleteValue;
+if (lastSavedData.type === 'mileage') deleteValue = lastSavedData.finish;
+if (lastSavedData.type === 'gas') deleteValue = lastSavedData.odometer;
+if (lastSavedData.type === 'expense') deleteValue = lastSavedData.amount;
+if (lastSavedData.type === 'allergy') deleteValue = lastSavedData.right;
+
 updateStatus('Deleting...', false, 'warning');
 hideCorrectButton();
 hideDeleteButton();
 
 var params = [
 'type=delete',
-'deleteRow=' + lastSavedRow,
 'deleteSheet=' + encodeURIComponent(lastSavedSheet),
+'deleteValue=' + encodeURIComponent(deleteValue),
 't=' + Date.now()
 ];
 
