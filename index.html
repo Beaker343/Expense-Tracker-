@@ -165,6 +165,8 @@ var spokenText = '';
 var submitAttempts = 0;
 var maxRetries = 3;
 var requestTimeout = 15000;
+var micRetryCount = 0;
+var maxMicRetries = 3;
 
 var prompts = {
 mileage: 'Date (if empty = today)\nFinish\nFrom\nTo\nWork or Personal\nFor (description)',
@@ -455,11 +457,14 @@ hideMainButtons();
 setActiveButton(type);
 
 if (recognition) {
+setTimeout(function() {
 try { 
 recognition.start();
 } catch(e) {
 updateStatus('Mic error. Tap button to try again.', true);
 showMainButtons();
+}
+}, 250);
 }
 } else {
 updateStatus('Speech not supported.', true);
