@@ -914,7 +914,10 @@ correctedData.notes = document.getElementById('editNotes').value;
 
 if (lastSavedSheet) {
   correctedData.deleteSheet = lastSavedSheet;
-  correctedData.originalFinish = lastSavedData.finish || lastSavedData.odometer || lastSavedData.amount;
+  if (lastSavedData.type === 'mileage') correctedData.originalValue = lastSavedData.finish;
+  if (lastSavedData.type === 'gas') correctedData.originalValue = lastSavedData.odometer;
+  if (lastSavedData.type === 'expense') correctedData.originalValue = lastSavedData.amount;
+  if (lastSavedData.type === 'allergy') correctedData.originalValue = lastSavedData.right;
 }
 
 document.getElementById('editPrompt').classList.remove('active');
