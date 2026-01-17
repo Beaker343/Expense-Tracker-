@@ -912,9 +912,9 @@ correctedData.left = parseFloat(document.getElementById('editLeft').value) || nu
 correctedData.notes = document.getElementById('editNotes').value;
 }
 
-if (lastSavedRow && lastSavedSheet) {
-correctedData.deleteRow = lastSavedRow;
-correctedData.deleteSheet = lastSavedSheet;
+if (lastSavedSheet) {
+  correctedData.deleteSheet = lastSavedSheet;
+  correctedData.originalFinish = lastSavedData.finish || lastSavedData.odometer || lastSavedData.amount;
 }
 
 document.getElementById('editPrompt').classList.remove('active');
