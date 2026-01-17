@@ -251,7 +251,23 @@ spokenText = text;
 document.getElementById('transcriptText').textContent = '🎤 ' + text;
 };
 
+var micRetryCount = 0;
+var maxMicRetries = 3;
+
 recognition.onerror = function(event) {
+if ((event.error === 'aborted' || event.error === 'no-speech') && micRetryCount < maxMicRetries) {
+micRetryCount++;
+setTimeout(function() {
+try {
+recognition.start();
+} catch(e) {
+updateStatus('Mic error. Tap button to try again.', true);
+showMainButtons();
+}
+}, 300);
+return;
+}
+
 updateStatus('Mic error: ' + event.error + '. Tap button to try again.', true);
 showMainButtons();
 };
@@ -414,6 +430,7 @@ return;
 }
 
 currentType = type;
+micRetryCount = 0;
 pendingData = {};
 spokenText = '';
 hideCorrectButton();
