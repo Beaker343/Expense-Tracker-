@@ -15,23 +15,12 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 .config .btn-test { background: #43e97b; }
 .config .btn-hide { background: #666; }
 .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-.btn { padding: 20px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 15px; color: white; text-align: center; transition: transform 0.1s, box-shadow 0.1s; }
+.btn { padding: 20px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 15px; color: white; text-align: center; }
 .btn-mileage { background: #667eea; }
 .btn-gas { background: #f5576c; }
 .btn-expense { background: #4facfe; }
 .btn-allergy { background: #43e97b; }
-.btn.pulse { animation: pulse 0.3s ease-in-out; }
-@keyframes pulse {
-0% { transform: scale(1); box-shadow: 0 0 0 rgba(255,255,255,0); }
-50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,255,255,0.5); }
-100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,255,255,0); }
-}
-.btn.active-recording { animation: glow 1s ease-in-out infinite; }
-@keyframes glow {
-0% { box-shadow: 0 0 5px rgba(255,255,255,0.3); }
-50% { box-shadow: 0 0 25px rgba(255,255,255,0.8); }
-100% { box-shadow: 0 0 5px rgba(255,255,255,0.3); }
-}
+.btn.active-recording { box-shadow: 0 0 20px rgba(255,255,255,0.8); }
 .btn span { display: block; }
 .btn .icon { font-size: 48px; margin-bottom: 5px; }
 .btn .label { font-size: 14px; }
@@ -176,12 +165,6 @@ var spokenText = '';
 var submitAttempts = 0;
 var maxRetries = 3;
 var requestTimeout = 15000;
-var audioContext;
-var analyser;
-var microphone;
-var animationFrame;
-var micRetryCount = 0;
-var maxMicRetries = 3;
 
 var prompts = {
 mileage: 'Date (if empty = today)\nFinish\nFrom\nTo\nWork or Personal\nFor (description)',
@@ -259,10 +242,6 @@ recognition.continuous = true;
 recognition.interimResults = true;
 recognition.lang = 'en-US';
 
-recognition.onstart = function() {
-startAudioAnalysis();
-};
-
 recognition.onresult = function(event) {
 var text = '';
 for (var i = 0; i < event.results.length; i++) {
@@ -270,32 +249,15 @@ text += event.results[i][0].transcript;
 }
 spokenText = text;
 document.getElementById('transcriptText').textContent = '🎤 ' + text;
-pulseActiveButton();
 };
 
 recognition.onerror = function(event) {
-stopAudioAnalysis();
-
-if ((event.error === 'aborted' || event.error === 'no-speech') && micRetryCount < maxMicRetries) {
-micRetryCount++;
-updateStatus('Restarting mic... (' + micRetryCount + '/' + maxMicRetries + ')', false, 'warning');
-setTimeout(function() {
-try {
-recognition.start();
-} catch(e) {
-updateStatus('Mic error. Tap button to try again.', true);
-showMainButtons();
-}
-}, 300);
-return;
-}
-
 updateStatus('Mic error: ' + event.error + '. Tap button to try again.', true);
 showMainButtons();
 };
 
 recognition.onend = function() {
-stopAudioAnalysis();
+// Do nothing - let stopListening handle it
 };
 }
 
@@ -308,15 +270,6 @@ document.getElementById('configSection').classList.add('hidden');
 updateStatus('Ready. Tap a button to start.');
 } else {
 updateStatus('Enter your Script URL, tap Save, then Test.');
-}
-
-// Pre-warm microphone permission
-if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-navigator.mediaDevices.getUserMedia({ audio: true })
-.then(function(stream) {
-stream.getTracks().forEach(function(track) { track.stop(); });
-})
-.catch(function() {});
 }
 };
 
@@ -449,68 +402,9 @@ var buttons = ['btnMileage', 'btnGas', 'btnExpense', 'btnAllergy'];
 buttons.forEach(function(id) {
 var btn = document.getElementById(id);
 if (btn) {
-btn.classList.remove('active-recording', 'pulse');
+btn.classList.remove('active-recording');
 }
 });
-}
-
-function pulseActiveButton() {
-var btnId = 'btn' + currentType.charAt(0).toUpperCase() + currentType.slice(1);
-var btn = document.getElementById(btnId);
-if (btn) {
-btn.classList.remove('pulse');
-void btn.offsetWidth;
-btn.classList.add('pulse');
-}
-}
-
-function startAudioAnalysis() {
-try {
-audioContext = new (window.AudioContext || window.webkitAudioContext)();
-analyser = audioContext.createAnalyser();
-analyser.fftSize = 256;
-
-navigator.mediaDevices.getUserMedia({ audio: true })
-.then(function(stream) {
-microphone = audioContext.createMediaStreamSource(stream);
-microphone.connect(analyser);
-monitorVolume();
-})
-.catch(function(err) {
-console.log('Audio analysis not available');
-});
-} catch(e) {
-console.log('Web Audio API not supported');
-}
-}
-
-function stopAudioAnalysis() {
-if (animationFrame) {
-cancelAnimationFrame(animationFrame);
-}
-if (audioContext) {
-audioContext.close();
-audioContext = null;
-}
-}
-
-function monitorVolume() {
-if (!analyser) return;
-
-var dataArray = new Uint8Array(analyser.frequencyBinCount);
-analyser.getByteFrequencyData(dataArray);
-
-var sum = 0;
-for (var i = 0; i < dataArray.length; i++) {
-sum += dataArray[i];
-}
-var average = sum / dataArray.length;
-
-if (average > 30) {
-pulseActiveButton();
-}
-
-animationFrame = requestAnimationFrame(monitorVolume);
 }
 
 function startEntry(type) {
@@ -528,7 +422,6 @@ hideRetryButton();
 lastSavedRow = null;
 lastSavedSheet = null;
 submitAttempts = 0;
-micRetryCount = 0;
 
 var recordLabels = {
 mileage: '🔴 MILEAGE',
@@ -545,14 +438,12 @@ hideMainButtons();
 setActiveButton(type);
 
 if (recognition) {
-setTimeout(function() {
 try { 
 recognition.start();
 } catch(e) {
 updateStatus('Mic error. Tap button to try again.', true);
 showMainButtons();
 }
-}, 150);
 } else {
 updateStatus('Speech not supported.', true);
 showMainButtons();
@@ -563,7 +454,6 @@ function stopListening() {
 if (recognition) {
 try { recognition.stop(); } catch(e) {}
 }
-stopAudioAnalysis();
 showMainButtons();
 
 var transcript = spokenText.trim().toLowerCase();
@@ -646,16 +536,13 @@ function parseSpokenNumber(text) {
 var ones = {'zero':0,'oh':0,'o':0,'one':1,'two':2,'to':2,'too':2,'three':3,'four':4,'for':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,'nineteen':19};
 var tens = {'twenty':20,'thirty':30,'forty':40,'fifty':50,'sixty':60,'seventy':70,'eighty':80,'ninety':90};
 
-// Try multiple digit patterns - handle commas, spaces, and other separators
 var allDigits = text.match(/\d+/g);
 if (allDigits) {
-// First check individual matches for 5+ digit numbers
 for (var i = 0; i < allDigits.length; i++) {
 if (allDigits[i].length >= 5) {
 return parseInt(allDigits[i]);
 }
 }
-// Try combining adjacent digit groups (handles "207 608" or "207,608")
 var combined = allDigits.join('');
 if (combined.length >= 5) {
 return parseInt(combined);
