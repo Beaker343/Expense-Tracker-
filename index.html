@@ -26,9 +26,7 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,255,255,0.5); }
 100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,255,255,0); }
 }
-.btn.active-recording {
-animation: glow 1s ease-in-out infinite;
-}
+.btn.active-recording { animation: glow 1s ease-in-out infinite; }
 @keyframes glow {
 0% { box-shadow: 0 0 5px rgba(255,255,255,0.3); }
 50% { box-shadow: 0 0 25px rgba(255,255,255,0.8); }
@@ -39,6 +37,7 @@ animation: glow 1s ease-in-out infinite;
 .btn .label { font-size: 14px; }
 .btn-stop { background: #ff4757; padding: 20px; font-size: 18px; margin-top: 20px; width: 100%; border: none; border-radius: 15px; color: white; font-weight: bold; }
 .btn-correct { background: #ffa502; padding: 12px 20px; font-size: 14px; margin-top: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
+.btn-delete { background: #ff4757; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .btn-retry { background: #ff6b81; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .recording-label { color: #ff4757; text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 10px; }
 .status { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 15px; color: white; min-height: 120px; }
@@ -55,11 +54,13 @@ animation: glow 1s ease-in-out infinite;
 .overlay.active { display: flex; }
 .popup { background: #1a1a2e; padding: 25px; border-radius: 15px; text-align: center; margin: 20px; max-width: 350px; width: 90%; max-height: 80vh; overflow-y: auto; }
 .popup h2 { color: white; margin: 0 0 20px 0; font-size: 18px; }
+.popup p { color: #aaa; font-size: 14px; margin-bottom: 20px; }
 .popup button { padding: 15px 30px; margin: 5px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; color: white; min-width: 100px; }
 .popup .btn1 { background: #4facfe; }
 .popup .btn2 { background: #f5576c; }
 .popup .btn-save { background: #43e97b; width: 100%; margin-top: 15px; }
 .popup .btn-cancel { background: #666; width: 100%; margin-top: 10px; }
+.popup .btn-confirm-delete { background: #ff4757; }
 .edit-field { margin-bottom: 15px; text-align: left; }
 .edit-field label { color: #aaa; font-size: 12px; display: block; margin-bottom: 5px; }
 .edit-field input, .edit-field select { width: 100%; padding: 10px; border: none; border-radius: 5px; font-size: 16px; box-sizing: border-box; }
@@ -121,6 +122,9 @@ animation: glow 1s ease-in-out infinite;
 <button class="btn btn-correct hidden" id="correctButton" onclick="showCorrectForm()">
 ✏️ Correct
 </button>
+<button class="btn btn-delete hidden" id="deleteButton" onclick="confirmDelete()">
+🗑️ Delete
+</button>
 <button class="btn btn-retry hidden" id="retryButton" onclick="retryLastSubmit()">
 🔄 Retry
 </button>
@@ -139,6 +143,15 @@ animation: glow 1s ease-in-out infinite;
 <h2>Corp or Personal?</h2>
 <button class="btn1" onclick="selectCorp('Corp')">Corp</button>
 <button class="btn2" onclick="selectCorp('Personal')">Personal</button>
+</div>
+</div>
+
+<div class="overlay" id="deletePrompt">
+<div class="popup">
+<h2>🗑️ Delete Entry?</h2>
+<p id="deleteDescription">Are you sure you want to delete this entry?</p>
+<button class="btn-confirm-delete" onclick="executeDelete()">Yes, Delete</button>
+<button class="btn-cancel" onclick="cancelDelete()">Cancel</button>
 </div>
 </div>
 
@@ -376,6 +389,14 @@ function hideCorrectButton() {
 document.getElementById('correctButton').classList.add('hidden');
 }
 
+function showDeleteButton() {
+document.getElementById('deleteButton').classList.remove('hidden');
+}
+
+function hideDeleteButton() {
+document.getElementById('deleteButton').classList.add('hidden');
+}
+
 function showRetryButton() {
 document.getElementById('retryButton').classList.remove('hidden');
 }
@@ -408,7 +429,7 @@ var btnId = 'btn' + currentType.charAt(0).toUpperCase() + currentType.slice(1);
 var btn = document.getElementById(btnId);
 if (btn) {
 btn.classList.remove('pulse');
-void btn.offsetWidth; // Trigger reflow
+void btn.offsetWidth;
 btn.classList.add('pulse');
 }
 }
@@ -472,6 +493,7 @@ currentType = type;
 pendingData = {};
 spokenText = '';
 hideCorrectButton();
+hideDeleteButton();
 hideRetryButton();
 lastSavedRow = null;
 lastSavedSheet = null;
@@ -806,6 +828,76 @@ pendingData.paidOn = (value === 'Corp') ? 'Corp Card' : 'Personal Card';
 submitData(pendingData, false);
 }
 
+function confirmDelete() {
+var desc = '';
+if (lastSavedData.type === 'mileage') {
+desc = 'Mileage: ' + lastSavedData.finish + ' km, ' + lastSavedData.from + '→' + lastSavedData.to;
+} else if (lastSavedData.type === 'gas') {
+desc = 'Gas: $' + lastSavedData.price + ', ' + lastSavedData.liters + 'L';
+} else if (lastSavedData.type === 'expense') {
+desc = 'Expense: $' + lastSavedData.amount + ' ' + lastSavedData.category;
+} else if (lastSavedData.type === 'allergy') {
+desc = 'Allergy: R=' + (lastSavedData.right || '-') + ', L=' + (lastSavedData.left || '-');
+}
+document.getElementById('deleteDescription').textContent = 'Delete: ' + desc + '?';
+document.getElementById('deletePrompt').classList.add('active');
+}
+
+function cancelDelete() {
+document.getElementById('deletePrompt').classList.remove('active');
+}
+
+function executeDelete() {
+document.getElementById('deletePrompt').classList.remove('active');
+
+if (!lastSavedRow || !lastSavedSheet) {
+updateStatus('Cannot delete - row info missing.', true);
+return;
+}
+
+var scriptUrl = localStorage.getItem('scriptUrl');
+if (!scriptUrl) {
+updateStatus('No Script URL.', true);
+return;
+}
+
+updateStatus('Deleting...', false, 'warning');
+hideCorrectButton();
+hideDeleteButton();
+
+var params = [
+'type=delete',
+'deleteRow=' + lastSavedRow,
+'deleteSheet=' + encodeURIComponent(lastSavedSheet),
+'t=' + Date.now()
+];
+
+var url = scriptUrl + '?' + params.join('&');
+
+var img = new Image();
+var done = false;
+
+var timeout = setTimeout(function() {
+if (!done) {
+done = true;
+updateStatus('⚠️ Delete may have failed. Check sheet.', false, 'warning');
+}
+}, requestTimeout);
+
+img.onload = img.onerror = function() {
+if (!done) {
+done = true;
+clearTimeout(timeout);
+updateStatus('🗑️ Deleted successfully.', false, 'success');
+lastSavedRow = null;
+lastSavedSheet = null;
+lastSavedData = {};
+}
+};
+
+img.src = url;
+}
+
 function showCorrectForm() {
 var html = '';
 var title = '';
@@ -925,6 +1017,7 @@ lastSubmitData = { data: data, isCorrection: isCorrection };
 
 updateStatus('Saving... (' + submitAttempts + '/' + maxRetries + ')', false, 'warning');
 hideCorrectButton();
+hideDeleteButton();
 hideRetryButton();
 
 var params = [];
@@ -962,6 +1055,7 @@ lastSavedSheet = sheetMap[data.type];
 lastSavedRow = 2;
 showRetryButton();
 showCorrectButton();
+showDeleteButton();
 }
 }
 }, requestTimeout);
@@ -994,6 +1088,7 @@ updateStatus('✅ ' + summary, false, 'success');
 
 hideRetryButton();
 showCorrectButton();
+showDeleteButton();
 }
 </script>
 
