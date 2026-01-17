@@ -267,10 +267,30 @@ document.getElementById('transcriptText').textContent = '🎤 ' + text;
 pulseActiveButton();
 };
 
+var micRetryCount = 0;
+var maxMicRetries = 3;
+
 recognition.onerror = function(event) {
+stopAudioAnalysis();
+
+// Auto-retry on transient errors
+if ((event.error === 'aborted' || event.error === 'no-speech') && micRetryCount < maxMicRetries) {
+micRetryCount++;
+updateStatus('Restarting mic... (' + micRetryCount + '/' + maxMicRetries + ')', false, 'warning');
+setTimeout(function() {
+try {
+recognition.start();
+startAudioAnalysis();
+} catch(e) {
+updateStatus('Mic error. Tap button to try again.', true);
+showMainButtons();
+}
+}, 300);
+return;
+}
+
 updateStatus('Mic error: ' + event.error + '. Tap button to try again.', true);
 showMainButtons();
-stopAudioAnalysis();
 };
 
 recognition.onend = function() {
