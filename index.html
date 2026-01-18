@@ -220,10 +220,11 @@ var categoryKeywords = {
 'donations': 'Donations',
 'charitable': 'Donations',
 'special': 'Special Expenses',
-'fyi': 'FYI'
+'fyi': 'FYI',
+'health': 'Health'
 };
 
-var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals & Entertainment', 'Promotions/Gifts/Tickets', 'Office/Postage/Stationery', 'Hotels', 'Travel Fares', 'Phone/Internet', 'Other Business', 'BUH', 'CME', 'License/Membership Fees', 'NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
+var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals & Entertainment', 'Promotions/Gifts/Tickets', 'Office/Postage/Stationery', 'Hotels', 'Travel Fares', 'Phone/Internet', 'Other Business', 'BUH', 'CME', 'License/Membership Fees', 'NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health'];
 
 function updateOnlineStatus() {
 var banner = document.getElementById('offlineBanner');
@@ -723,7 +724,7 @@ function parseExpense(text) {
   }
 
   // Corp/Personal detection
-  var autoPersonal = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI'];
+  var autoPersonal = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health'];
   var autoCorp = ['CME', 'License/Membership Fees'];
 
   var corpPersonal = null;
@@ -811,6 +812,8 @@ function parseExpense(text) {
   } else {
     submitData(pendingData, false);
   }
+}
+
 }function parseAllergy(text) {
 var right = null;
 var left = null;
