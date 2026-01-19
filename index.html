@@ -167,6 +167,8 @@ var maxRetries = 3;
 var requestTimeout = 15000;
 var micRetryCount = 0;
 var maxMicRetries = 3;
+var isRecognitionActive = false;
+var intentionalStop = false;
 
 var prompts = {
   mileage: 'Date (if empty = today)\nFinish\nFrom\nTo\nWork or Personal\nFor (description)',
@@ -254,17 +256,26 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     document.getElementById('transcriptText').textContent = '🎤 ' + text;
   };
 
+  recognition.onstart = function() {
+    isRecognitionActive = true;
+    updateStatus('Listening... (attempt ' + (micRetryCount + 1) + ' of ' + (maxMicRetries + 1) + ')');
+  };
+
   recognition.onerror = function(event) {
+    isRecognitionActive = false;
+
     if ((event.error === 'aborted' || event.error === 'no-speech') && micRetryCount < maxMicRetries) {
       micRetryCount++;
       setTimeout(function() {
-        try {
-          recognition.start();
-        } catch(e) {
-          updateStatus('Mic error. Tap button to try again.', true);
-          showMainButtons();
+        if (!intentionalStop && recognition) {
+          try {
+            recognition.start();
+          } catch(e) {
+            updateStatus('Mic error. Tap button to try again.', true);
+            showMainButtons();
+          }
         }
-      }, 300);
+      }, 1000);
       return;
     }
 
@@ -273,6 +284,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   };
 
   recognition.onend = function() {
+    isRecognitionActive = false;
   };
 }
 
@@ -454,8 +466,15 @@ function startEntry(type) {
   setActiveButton(type);
 
   if (recognition) {
+    // Stop any existing recognition first
+    if (isRecognitionActive) {
+      try { recognition.stop(); } catch(e) {}
+    }
+
+    intentionalStop = false;
+
     setTimeout(function() {
-      try { 
+      try {
         recognition.start();
       } catch(e) {
         updateStatus('Mic error. Tap button to try again.', true);
@@ -469,9 +488,11 @@ function startEntry(type) {
 }
 
 function stopListening() {
+  intentionalStop = true;
   if (recognition) {
     try { recognition.stop(); } catch(e) {}
   }
+  isRecognitionActive = false;
   showMainButtons();
 
   var transcript = spokenText.trim().toLowerCase();
