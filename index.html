@@ -279,10 +279,11 @@ var categoryKeywords = {
   'charitable': 'Donations',
   'special': 'Special Expenses',
   'fyi': 'FYI',
-  'health': 'Health'
+  'health': 'Health',
+  'corp': 'Corp'
 };
 
-var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals', 'Promotions/Gifts/Tickets', 'Office/Postage/Stationery', 'Hotels', 'Travel Fares', 'Phone/Internet', 'Other Business', 'BUH', 'CME', 'License/Membership Fees', 'NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health'];
+var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals', 'Promotions/Gifts/Tickets', 'Office/Postage/Stationery', 'Hotels', 'Travel Fares', 'Phone/Internet', 'Other Business', 'BUH', 'CME', 'License/Membership Fees', 'NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health', 'Corp'];
 
 // Microsoft Authentication Functions
 async function signIn() {
@@ -403,16 +404,10 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     isRecognitionActive = false;
     if ((event.error === 'aborted' || event.error === 'no-speech') && micRetryCount < maxMicRetries) {
       micRetryCount++;
-      setTimeout(function() {
-        if (!intentionalStop && recognition) {
-          try {
-            recognition.start();
-          } catch(e) {
-            updateStatus('Mic error. Tap button to try again.', true);
-            showMainButtons();
-          }
-        }
-      }, 1000);
+      // iOS blocks auto-retry - require user tap instead
+      var emoji = currentType === 'mileage' ? '🚗' : currentType === 'gas' ? '⛽' : currentType === 'expense' ? '💳' : '💉';
+      updateStatus('No speech heard. Tap ' + emoji + ' to try again. (attempt ' + micRetryCount + ' of ' + (maxMicRetries + 1) + ')', true);
+      showMainButtons();
       return;
     }
     updateStatus('Mic error: ' + event.error + '. Tap button to try again.', true);
@@ -873,6 +868,10 @@ function parseExpense(text) {
   // Parse vendor: text between "vendor" and "for"
   var vendor = '';
   var vendorMatch = text.match(/\bvendor\s+(.+?)\s+for\b/i);
+  if (!vendorMatch) {
+    // Fallback: vendor followed by word(s) until category/corp/personal/end
+    vendorMatch = text.match(/\bvendor\s+(.+?)(?:\s+category\b|\s+(?:corp|corporate|personal)\b|\s*$)/i);
+  }
   if (vendorMatch) {
     vendor = vendorMatch[1].trim();
   }
@@ -881,6 +880,10 @@ function parseExpense(text) {
   // Parse description: text between "for" and "category"
   var description = '';
   var descMatch = text.match(/\bfor\s+(.+?)\s+category\b/i);
+  if (!descMatch) {
+    // Fallback: "for X" followed by corp/personal or end
+    descMatch = text.match(/\bfor\s+(.+?)(?:\s+(?:corp|corporate|personal)\b|\s*$)/i);
+  }
   if (descMatch) {
     description = descMatch[1].trim();
   }
@@ -903,23 +906,25 @@ function parseExpense(text) {
 
   // Auto-assign corp/personal for certain categories
   var autoPersonal = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health'];
-  var autoCorp = ['CME', 'License/Membership Fees'];
+  var autoCorp = ['CME', 'License/Membership Fees', 'Corp'];
 
   var corpPersonal = null;
   var paidOn = null;
 
-  if (autoPersonal.indexOf(category) !== -1) {
+  // First check for explicit corp/personal keywords anywhere in text
+  // "personal" takes priority (in case "corp" is being used as the category name)
+  if (/\bpersonal\b/i.test(text)) {
     corpPersonal = 'Personal';
-    paidOn = 'Personal Card';
-  } else if (autoCorp.indexOf(category) !== -1) {
+  } else if (/\b(corp|corporate)\b/i.test(text)) {
     corpPersonal = 'Corp';
-    paidOn = 'Corp Card';
-  } else {
-    // Parse corp/personal: after category keyword
-    if (/\bcategory\s+.+?\s+(corp|corporate)\b/i.test(text)) {
-      corpPersonal = 'Corp';
-    } else if (/\bcategory\s+.+?\s+personal\b/i.test(text)) {
+  }
+
+  // If no explicit keyword, auto-assign based on category
+  if (!corpPersonal) {
+    if (autoPersonal.indexOf(category) !== -1) {
       corpPersonal = 'Personal';
+    } else if (autoCorp.indexOf(category) !== -1) {
+      corpPersonal = 'Corp';
     }
   }
   debugLog('CorpPersonal: ' + corpPersonal);
