@@ -1148,7 +1148,13 @@ async function syncOfflineQueue() {
 
       if (entry.type === 'mileage') {
         sheetName = 'Mileage';
-        rowData = [entry.date, '', entry.finish, entry.from || '', entry.to || '', '', entry.wp, entry.description || ''];
+        rowData = {
+          ranges: [
+            { col: 'A', values: [entry.date] },
+            { col: 'C', values: [entry.finish, entry.from || '', entry.to || ''] },
+            { col: 'G', values: [entry.wp, entry.description || ''] }
+          ]
+        };
       } else if (entry.type === 'gas') {
         sheetName = 'Gas';
         rowData = [entry.date, entry.odometer, entry.liters, entry.price, ''];
