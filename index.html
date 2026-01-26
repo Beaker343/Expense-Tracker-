@@ -746,10 +746,7 @@ function parseMileage(text) {
       finish = parseSpokenNumber(stripDatePatterns(kmMatch[1]));
     }
   }
-  // Priority 3: Fallback - parse from full text with date patterns stripped
-  if (!finish) {
-    finish = parseSpokenNumber(stripDatePatterns(text));
-  }
+  // No fallback - require "odometer" or "kilometers" keyword to avoid date contamination
   var cleanText = text.replace(/\b(the|a|an)\b/g, '').replace(/\s+/g, ' ');
   var toMatch = cleanText.match(/(?:from\s+)?(\w+)\s+to\s+(\w+)/i);
   var from = toMatch ? toMatch[1] : '';
