@@ -790,7 +790,7 @@ function parseMileage(text) {
       .replace(/\bpersonal\b/gi, '')
       .replace(/\bcorp\b/gi, '')
       .replace(/\bcorporate\b/gi, '')
-      .replace(/\bfor\b/gi, '')
+      .replace(/\b(for|four|4)\b/gi, '')
       .replace(/\b\d{5,}\b/g, '')
       // Auto-correct common misheard words
       .replace(/\b(solder|soldier|sotter|sawder|saturday|suter|sutter|sauter)\b/gi, 'Sauder')
