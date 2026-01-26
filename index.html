@@ -33,6 +33,7 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 .btn-stop { background: #ff4757; padding: 20px; font-size: 18px; margin-top: 20px; width: 100%; border: none; border-radius: 15px; color: white; font-weight: bold; }
 .btn-correct { background: #ffa502; padding: 12px 20px; font-size: 14px; margin-top: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .btn-delete { background: #ff4757; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
+.btn-next { background: #2ed573; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .btn-retry { background: #ff6b81; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .btn-sync { background: #0078d4; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .recording-label { color: #ff4757; text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 10px; }
@@ -130,6 +131,9 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 </button>
 <button class="btn btn-delete hidden" id="deleteButton" onclick="confirmDelete()">
 🗑️ Delete
+</button>
+<button class="btn btn-next hidden" id="nextButton" onclick="startNext()">
+✅ Next
 </button>
 <button class="btn btn-retry hidden" id="retryButton" onclick="retryLastSubmit()">
 🔄 Retry
@@ -237,10 +241,10 @@ var intentionalStop = false;
 var offlineQueue = JSON.parse(localStorage.getItem('expenseQueue') || '[]');
 
 var prompts = {
-  mileage: 'Date (if empty = today)\nKM Finish\nFrom\nTo\nWork or Personal\nFor (description)',
-  gas: 'Date (if empty = today)\nOdometer\nLitres\nPrice',
-  expense: 'Date (if empty = today)\nAmount, Vendor, for Description, Category,\nCorp/Personal, Card\n\nPersonal: FYI, Non-BUH, Donations, Special, Health\nAuto: Parking, Repairs, Wash\nCorp: Office, CME, License/Membership, BUH, Travel, Hotels, Meals, Gifts',
-  allergy: 'Date (if empty = today)\nRight, Left or Both amount\nNotes'
+  mileage: 'Example: "January 25th odometer 219500 from home to work for Sauder Leadership"\n\nDate (optional), odometer [number], from [place] to [place], work/personal, for [description]',
+  gas: 'Example: "$85 45 liters odometer 219400 kilometers"\n\nPrice ($X), liters (X liters), odometer [number] kilometers',
+  expense: 'Example: "amount $50 vendor Costco for groceries category meals personal"\n\namount $X, vendor [name] for [description], category [type], corp/personal\n\nCategories: Parking, Meals, Hotels, CME, Health, FYI, Donations',
+  allergy: 'Example: "0.3 both" or "0.25 right 0.3 left"\n\nDate (optional), dose (X both, or X right/left), notes [text]'
 };
 
 var categoryKeywords = {
@@ -523,6 +527,25 @@ function hideRetryButton() {
   document.getElementById('retryButton').classList.add('hidden');
 }
 
+function showNextButton() {
+  document.getElementById('nextButton').classList.remove('hidden');
+}
+
+function hideNextButton() {
+  document.getElementById('nextButton').classList.add('hidden');
+}
+
+function startNext() {
+  hideCorrectButton();
+  hideDeleteButton();
+  hideNextButton();
+  lastSavedRow = null;
+  lastSavedSheet = null;
+  lastSavedData = {};
+  lastTranscript = '';
+  updateStatus('Ready. Tap a button to start.');
+}
+
 function setActiveButton(type) {
   clearActiveButton();
   var btnId = 'btn' + type.charAt(0).toUpperCase() + type.slice(1);
@@ -554,6 +577,7 @@ function startEntry(type) {
   spokenText = '';
   hideCorrectButton();
   hideDeleteButton();
+  hideNextButton();
   hideRetryButton();
   lastSavedRow = null;
   lastSavedSheet = null;
@@ -1375,6 +1399,7 @@ function showSuccess(data, isCorrection) {
   hideRetryButton();
   showCorrectButton();
   showDeleteButton();
+  showNextButton();
 }
 
 function confirmDelete() {
@@ -1519,6 +1544,7 @@ async function executeDelete() {
     updateStatus('✅ Deleted row ' + lastSavedRow, false, 'success');
     hideCorrectButton();
     hideDeleteButton();
+    hideNextButton();
 
     // If we deleted a Mileage entry, refresh lastOdometer from sheet
     if (lastSavedSheet === 'Mileage') {
