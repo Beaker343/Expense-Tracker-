@@ -838,9 +838,9 @@ function parseGas(text) {
   var litersMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:liters?|litres?|l)\b/i);
   var liters = litersMatch ? parseFloat(litersMatch[1]) : null;
 
-  // Match keyword BEFORE odometer (same pattern as mileage parsing)
-  // User says "kilometers 219146" to clearly separate from date
-  var odometerMatch = text.match(/\b(?:kilometer|kilometers|kilometres|km|odometer)\s+(\d{5,6})\b/i);
+  // Match "odometer [number] kilometers" pattern to clearly bracket the value
+  // User says "odometer 219146 kilometers" to separate from date and liters
+  var odometerMatch = text.match(/\bodometer\s+(\d{5,6})\s*(?:kilometer|kilometers|kilometres|km)\b/i);
   var odometer = odometerMatch ? parseInt(odometerMatch[1]) : null;
 
   var date = parseDate(text);
