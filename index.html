@@ -856,6 +856,7 @@ function parseGas(text) {
 }
 
 function parseExpense(text) {
+  debugLog('parseExpense input: "' + text + '"');
   var date = parseDate(text);
 
   // Parse amount: look for "amount" delimiter followed by $X or X dollars
@@ -867,6 +868,7 @@ function parseExpense(text) {
   if (amountMatch) {
     amount = parseFloat(amountMatch[1]);
   }
+  debugLog('Amount match: ' + (amountMatch ? amountMatch[0] : 'null'));
 
   // Parse vendor: text between "vendor" and "for"
   var vendor = '';
@@ -874,6 +876,7 @@ function parseExpense(text) {
   if (vendorMatch) {
     vendor = vendorMatch[1].trim();
   }
+  debugLog('Vendor match: ' + (vendorMatch ? vendorMatch[0] : 'null'));
 
   // Parse description: text between "for" and "category"
   var description = '';
@@ -881,6 +884,7 @@ function parseExpense(text) {
   if (descMatch) {
     description = descMatch[1].trim();
   }
+  debugLog('Description match: ' + (descMatch ? descMatch[0] : 'null'));
 
   // Parse category: text after "category" until corp/personal/paid or end
   var category = null;
@@ -895,6 +899,7 @@ function parseExpense(text) {
       }
     }
   }
+  debugLog('Category match: ' + (categoryMatch ? categoryMatch[0] : 'null') + ' -> ' + category);
 
   // Auto-assign corp/personal for certain categories
   var autoPersonal = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health'];
@@ -917,6 +922,7 @@ function parseExpense(text) {
       corpPersonal = 'Personal';
     }
   }
+  debugLog('CorpPersonal: ' + corpPersonal);
 
   // Parse paid on: if "paid on" exists, use what follows; otherwise default to corpPersonal
   var paidOnMatch = text.match(/\bpaid\s+on\s+(personal|corp|corporate)\b/i);
