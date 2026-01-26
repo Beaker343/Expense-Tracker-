@@ -239,7 +239,7 @@ var offlineQueue = JSON.parse(localStorage.getItem('expenseQueue') || '[]');
 var prompts = {
   mileage: 'Date (if empty = today)\nKM Finish\nFrom\nTo\nWork or Personal\nFor (description)',
   gas: 'Date (if empty = today)\nOdometer\nLitres\nPrice',
-  expense: 'Date (if empty = today)\nAmount, Vendor, for Description, Category, Corp/Personal\n\nPersonal: FYI, Non-BUH, Donations, Special, Health\nAuto: Parking, Repairs, Wash\nCorp: Office, CME, License/Membership, BUH, Travel, Hotels, Meals, Gifts',
+  expense: 'Date (if empty = today)\nAmount, Vendor, for Description, Category,\nCorp/Personal, Card\n\nPersonal: FYI, Non-BUH, Donations, Special, Health\nAuto: Parking, Repairs, Wash\nCorp: Office, CME, License/Membership, BUH, Travel, Hotels, Meals, Gifts',
   allergy: 'Date (if empty = today)\nRight, Left or Both amount\nNotes'
 };
 
@@ -941,16 +941,17 @@ function parseExpense(text) {
   }
   debugLog('CorpPersonal: ' + corpPersonal);
 
-  // Parse paid on: if "paid on" exists, use what follows; otherwise default to corpPersonal
-  var paidOnMatch = text.match(/\bpaid\s+on\s+(personal|corp|corporate)\b/i);
-  if (paidOnMatch) {
-    var paidOnVal = paidOnMatch[1].toLowerCase();
-    if (paidOnVal === 'personal') {
-      paidOn = 'Personal Card';
-    } else {
-      paidOn = 'Corp Card';
-    }
-  } else if (!paidOn && corpPersonal) {
+  // Parse card type: "paid on X card", "X card", or default to corpPersonal
+  // Check for explicit card mentions
+  if (/\b(paid\s+on\s+)?personal\s+card\b/i.test(text)) {
+    paidOn = 'Personal Card';
+  } else if (/\b(paid\s+on\s+)?(corp|corporate)\s+card\b/i.test(text)) {
+    paidOn = 'Corp Card';
+  } else if (/\bpaid\s+on\s+(personal)\b/i.test(text)) {
+    paidOn = 'Personal Card';
+  } else if (/\bpaid\s+on\s+(corp|corporate)\b/i.test(text)) {
+    paidOn = 'Corp Card';
+  } else if (corpPersonal) {
     // Default: same as corpPersonal
     paidOn = corpPersonal === 'Corp' ? 'Corp Card' : 'Personal Card';
   }
