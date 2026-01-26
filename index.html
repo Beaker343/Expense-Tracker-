@@ -1030,11 +1030,15 @@ async function addRowToExcel(sheetName, rowData, targetRow) {
     debugLog('Using target row: ' + lastRow);
   } else {
     // Get Column A (Date) to find first empty row - ignores formula-only rows
-    var colAUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/range(address=\'A1:A500\')';
+    // Add timestamp to bust cache (ensures manual Excel deletions are recognized)
+    var colAUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/range(address=\'A1:A500\')?nocache=' + Date.now();
 
     debugLog('Fetching Column A to find first empty row...');
     var colAResponse = await fetch(colAUrl, {
-      headers: { 'Authorization': 'Bearer ' + token }
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Cache-Control': 'no-cache, no-store'
+      }
     });
 
     debugLog('Column A response: HTTP ' + colAResponse.status);
