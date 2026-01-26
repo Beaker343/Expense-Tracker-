@@ -733,7 +733,17 @@ function parseMileage(text) {
   var description = '';
   var forMatch = text.match(/\bfor\s+(.+)$/i);
   if (forMatch) {
-    description = forMatch[1]
+    description = forMatch[1];
+  } else {
+    // Fallback: capture text after work/personal keyword
+    var afterWpMatch = text.match(/\b(work|personal|corp|corporate)\s+(.+)$/i);
+    if (afterWpMatch) {
+      description = afterWpMatch[2];
+    }
+  }
+  // Clean up description
+  if (description) {
+    description = description
       .replace(/\bwork\b/gi, '')
       .replace(/\bpersonal\b/gi, '')
       .replace(/\bcorp\b/gi, '')
@@ -976,9 +986,11 @@ async function addRowToExcel(sheetName, rowData) {
   // Find first empty row in Column A (skip header row)
   var lastRow = 2; // Start at row 2 (after header)
   for (var i = 1; i < values.length; i++) {
-    if (values[i] && values[i][0] && values[i][0].toString().trim() !== '') {
-      lastRow = i + 2; // Next row after this data row (1-indexed + skip header)
+    if (!values[i] || !values[i][0] || values[i][0].toString().trim() === '') {
+      lastRow = i + 1; // Found first empty row (i is 0-indexed, +1 for Excel row)
+      break;
     }
+    lastRow = i + 2; // If no empty found, use next row after last data
   }
   debugLog('First empty Date row: ' + lastRow);
 
