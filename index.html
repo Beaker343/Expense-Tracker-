@@ -856,33 +856,47 @@ function parseGas(text) {
 }
 
 function parseExpense(text) {
+  var date = parseDate(text);
+
+  // Parse amount: look for "amount" delimiter followed by $X or X dollars
   var amount = null;
-  var amountEndPos = 0;
-  var amountMatch = text.match(/\$\s*(\d+(?:\.\d+)?)/i);
+  var amountMatch = text.match(/\bamount\s+\$?\s*(\d+(?:\.\d+)?)/i);
+  if (!amountMatch) {
+    amountMatch = text.match(/\bamount\s+(\d+(?:\.\d+)?)\s*dollars?/i);
+  }
   if (amountMatch) {
     amount = parseFloat(amountMatch[1]);
-    amountEndPos = text.indexOf(amountMatch[0]) + amountMatch[0].length;
-  } else {
-    amountMatch = text.match(/(\d+(?:\.\d+)?)\s*dollars?/i);
-    if (amountMatch) {
-      amount = parseFloat(amountMatch[1]);
-      amountEndPos = text.indexOf(amountMatch[0]) + amountMatch[0].length;
-    }
   }
 
+  // Parse vendor: text between "vendor" and "for"
+  var vendor = '';
+  var vendorMatch = text.match(/\bvendor\s+(.+?)\s+for\b/i);
+  if (vendorMatch) {
+    vendor = vendorMatch[1].trim();
+  }
+
+  // Parse description: text between "for" and "category"
+  var description = '';
+  var descMatch = text.match(/\bfor\s+(.+?)\s+category\b/i);
+  if (descMatch) {
+    description = descMatch[1].trim();
+  }
+
+  // Parse category: text after "category" until corp/personal/paid or end
   var category = null;
-  var matchedKeyword = '';
-  var categoryPos = -1;
-  for (var keyword in categoryKeywords) {
-    var pos = text.toLowerCase().indexOf(keyword);
-    if (pos !== -1) {
-      category = categoryKeywords[keyword];
-      matchedKeyword = keyword;
-      categoryPos = pos;
-      break;
+  var categoryMatch = text.match(/\bcategory\s+(.+?)(?:\s+(?:corp|corporate|personal|paid)\b|$)/i);
+  if (categoryMatch) {
+    var categoryText = categoryMatch[1].trim().toLowerCase();
+    // Look up in categoryKeywords
+    for (var keyword in categoryKeywords) {
+      if (categoryText.indexOf(keyword) !== -1) {
+        category = categoryKeywords[keyword];
+        break;
+      }
     }
   }
 
+  // Auto-assign corp/personal for certain categories
   var autoPersonal = ['NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health'];
   var autoCorp = ['CME', 'License/Membership Fees'];
 
@@ -895,55 +909,37 @@ function parseExpense(text) {
   } else if (autoCorp.indexOf(category) !== -1) {
     corpPersonal = 'Corp';
     paidOn = 'Corp Card';
-  } else if (text.indexOf('corp on personal') !== -1) {
-    corpPersonal = 'Corp';
-    paidOn = 'Personal Card';
-  } else if (text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) {
-    corpPersonal = 'Corp';
-    paidOn = 'Corp Card';
-  } else if (text.indexOf('personal') !== -1) {
-    corpPersonal = 'Personal';
-    paidOn = 'Personal Card';
-  }
-
-  var vendor = '';
-  var description = '';
-  var textAfterAmount = text.substring(amountEndPos).trim();
-  var forPos = textAfterAmount.toLowerCase().indexOf(' for ');
-
-  if (forPos !== -1) {
-    vendor = textAfterAmount.substring(0, forPos).trim();
-    var afterFor = textAfterAmount.substring(forPos + 5).trim();
-    if (matchedKeyword) {
-      var catPosInAfterFor = afterFor.toLowerCase().indexOf(matchedKeyword);
-      if (catPosInAfterFor !== -1) {
-        description = afterFor.substring(0, catPosInAfterFor).trim();
-      } else {
-        description = afterFor;
-      }
-    } else {
-      description = afterFor;
-    }
-    description = description.replace(/\b(corp|corporate|personal)\b/gi, '').trim();
   } else {
-    if (categoryPos !== -1) {
-      var vendorText = textAfterAmount.substring(0, textAfterAmount.toLowerCase().indexOf(matchedKeyword));
-      vendor = vendorText.replace(/\b(corp|corporate|personal)\b/gi, '').trim();
-    } else {
-      vendor = textAfterAmount.replace(/\b(corp|corporate|personal)\b/gi, '').trim();
+    // Parse corp/personal: after category keyword
+    if (/\bcategory\s+.+?\s+(corp|corporate)\b/i.test(text)) {
+      corpPersonal = 'Corp';
+    } else if (/\bcategory\s+.+?\s+personal\b/i.test(text)) {
+      corpPersonal = 'Personal';
     }
   }
 
-  var date = parseDate(text);
+  // Parse paid on: if "paid on" exists, use what follows; otherwise default to corpPersonal
+  var paidOnMatch = text.match(/\bpaid\s+on\s+(personal|corp|corporate)\b/i);
+  if (paidOnMatch) {
+    var paidOnVal = paidOnMatch[1].toLowerCase();
+    if (paidOnVal === 'personal') {
+      paidOn = 'Personal Card';
+    } else {
+      paidOn = 'Corp Card';
+    }
+  } else if (!paidOn && corpPersonal) {
+    // Default: same as corpPersonal
+    paidOn = corpPersonal === 'Corp' ? 'Corp Card' : 'Personal Card';
+  }
 
   pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: description, date: date };
 
   if (!amount) {
-    updateStatus('Need amount (X dollars). Tap 💳 to try again.', true);
+    updateStatus('Need amount. Say "amount $X". Tap 💳 to try again.', true);
     return;
   }
   if (!category) {
-    updateStatus('Need category. Tap 💳 to try again.', true);
+    updateStatus('Need category. Say "category [type]". Tap 💳 to try again.', true);
     return;
   }
   if (!corpPersonal) {
