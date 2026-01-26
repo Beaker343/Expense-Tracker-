@@ -893,7 +893,9 @@ function parseExpense(text) {
     vendorMatch = text.match(/\bvendor\s+(.+?)(?:\s+category\b|\s+(?:corp|corporate|personal)\b|\s*$)/i);
   }
   if (vendorMatch) {
-    vendor = vendorMatch[1].trim();
+    vendor = vendorMatch[1].trim()
+      .replace(/\b(solder|soldier|sotter|sawder|saturday|suter|sutter|sauter)\b/gi, 'Sauder')
+      .replace(/\bSauder\s+leadership\b/gi, 'Sauder Leadership');
   }
   debugLog('Vendor match: ' + (vendorMatch ? vendorMatch[0] : 'null'));
 
@@ -905,7 +907,9 @@ function parseExpense(text) {
     descMatch = text.match(/\bfor\s+(.+?)(?:\s+(?:corp|corporate|personal)\b|\s*$)/i);
   }
   if (descMatch) {
-    description = descMatch[1].trim();
+    description = descMatch[1].trim()
+      .replace(/\b(solder|soldier|sotter|sawder|saturday|suter|sutter|sauter)\b/gi, 'Sauder')
+      .replace(/\bSauder\s+leadership\b/gi, 'Sauder Leadership');
   }
   debugLog('Description match: ' + (descMatch ? descMatch[0] : 'null'));
 
