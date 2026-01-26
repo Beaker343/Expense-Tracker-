@@ -866,10 +866,10 @@ function parseExpense(text) {
   debugLog('parseExpense input: "' + text + '"');
 
   // Fix concatenated words from speech recognition
-  // Add space BEFORE keywords: "mealscategory" → "meals category"
-  text = text.replace(/(\w)(amount|vendor|category|corp|corporate|personal)/gi, '$1 $2');
+  // Add space BEFORE keywords: "mealscategory" → "meals category", "burgofor" → "burgo for"
+  text = text.replace(/(\w)(amount|vendor|for|category|corp|corporate|personal)/gi, '$1 $2');
   // Add space AFTER keywords: "categoryEducation" → "category Education"
-  text = text.replace(/(amount|vendor|category|for)(\w)/gi, '$1 $2');
+  text = text.replace(/(amount|vendor|for|category)(\w)/gi, '$1 $2');
   debugLog('parseExpense cleaned: "' + text + '"');
 
   var date = parseDate(text);
@@ -1361,7 +1361,8 @@ function getSummary(data) {
 function showSuccess(data, isCorrection) {
   var summary = getSummary(data);
   var rowInfo = lastSavedRow ? ' (row ' + lastSavedRow + ')' : '';
-  var heardText = lastTranscript ? '\nHeard: "' + lastTranscript + '"' : '';
+  debugLog('showSuccess lastTranscript: ' + (lastTranscript || 'EMPTY'));
+  var heardText = lastTranscript ? '\n\nHeard: "' + lastTranscript + '"' : '';
   if (isCorrection) {
     updateStatus('✅ Fixed: ' + summary + rowInfo, false, 'success');
   } else {
