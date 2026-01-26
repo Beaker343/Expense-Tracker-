@@ -301,25 +301,16 @@ var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals', '
 
 // Microsoft Authentication Functions
 async function signIn() {
-  try {
-    var loginRequest = {
-      scopes: ['Files.ReadWrite', 'User.Read']
-    };
-    var response = await msalInstance.loginPopup(loginRequest);
-    await getToken();
-    updateAuthUI();
-    updateStatus('Ready. Tap a button to start.');
-  } catch (error) {
-    console.error('Login error:', error);
-    updateStatus('Sign in failed: ' + error.message, true);
-  }
+  var loginRequest = {
+    scopes: ['Files.ReadWrite', 'User.Read']
+  };
+  // Use redirect instead of popup (works better on iOS Safari)
+  msalInstance.loginRedirect(loginRequest);
 }
 
 function signOut() {
-  msalInstance.logoutPopup();
   accessToken = null;
-  updateAuthUI();
-  updateStatus('Signed out. Sign in to track expenses.');
+  msalInstance.logoutRedirect();
 }
 
 async function getToken() {
@@ -339,9 +330,9 @@ async function getToken() {
     return accessToken;
   } catch (error) {
     if (error.name === 'InteractionRequiredAuthError') {
-      var response = await msalInstance.acquireTokenPopup(tokenRequest);
-      accessToken = response.accessToken;
-      return accessToken;
+      // Use redirect instead of popup
+      msalInstance.acquireTokenRedirect(tokenRequest);
+      return null;
     }
     throw error;
   }
@@ -436,6 +427,16 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 // Initialize on page load
 window.onload = async function() {
   updateOnlineStatus();
+
+  // Handle redirect response from Microsoft login
+  try {
+    var response = await msalInstance.handleRedirectPromise();
+    if (response) {
+      debugLog('Login redirect completed');
+    }
+  } catch (error) {
+    debugLog('Redirect error: ' + error.message, true);
+  }
 
   // Check if already signed in
   var accounts = msalInstance.getAllAccounts();
