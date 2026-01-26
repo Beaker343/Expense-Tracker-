@@ -227,7 +227,7 @@ var intentionalStop = false;
 var offlineQueue = JSON.parse(localStorage.getItem('expenseQueue') || '[]');
 
 var prompts = {
-  mileage: 'Date (if empty = today)\nFinish\nFrom\nTo\nWork or Personal\nFor (description)',
+  mileage: 'Date (if empty = today)\nKM Finish\nFrom\nTo\nWork or Personal\nFor (description)',
   gas: 'Date (if empty = today)\nOdometer\nLitres\nPrice',
   expense: 'Date (if empty = today)\nAmount, Vendor, for Description, Category, Corp/Personal\n\nPersonal: FYI, Non-BUH, Donations, Special, Health\nAuto: Parking, Repairs, Wash\nCorp: Office, CME, License/Membership, BUH, Travel, Hotels, Meals, Gifts',
   allergy: 'Date (if empty = today)\nRight, Left or Both amount\nNotes'
@@ -434,6 +434,12 @@ window.onload = async function() {
     try {
       await getToken();
       updateAuthUI();
+      // Refresh lastOdometer from actual sheet data
+      var actualOdo = await fetchLastOdometerFromSheet();
+      if (actualOdo !== null) {
+        lastOdometer = actualOdo;
+        localStorage.setItem('lastOdometer', actualOdo);
+      }
       updateStatus('Ready. Tap a button to start.');
     } catch (e) {
       updateAuthUI();
@@ -658,6 +664,14 @@ function parseDate(text) {
   return formatDate(today);
 }
 
+function stripDatePatterns(text) {
+  // Remove "Month Day, Year" patterns (e.g., "January 24, 2026")
+  text = text.replace(/(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?/gi, '');
+  // Remove standalone years (2020-2039)
+  text = text.replace(/\b20[2-3]\d\b/g, '');
+  return text;
+}
+
 function parseSpokenNumber(text) {
   var ones = {'zero':0,'oh':0,'o':0,'one':1,'two':2,'to':2,'too':2,'three':3,'four':4,'for':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,'nineteen':19};
   var tens = {'twenty':20,'thirty':30,'forty':40,'fifty':50,'sixty':60,'seventy':70,'eighty':80,'ninety':90};
@@ -719,7 +733,16 @@ function parseSpokenNumber(text) {
 }
 
 function parseMileage(text) {
-  var finish = parseSpokenNumber(text);
+  // First try to find odometer after keyword (kilometer, km, odometer)
+  var finish = null;
+  var kmMatch = text.match(/\b(kilometer|kilometers|km|odometer)\s+(.+)/i);
+  if (kmMatch) {
+    finish = parseSpokenNumber(kmMatch[2]);
+  }
+  // Fallback: parse from text with date patterns stripped
+  if (!finish) {
+    finish = parseSpokenNumber(stripDatePatterns(text));
+  }
   var cleanText = text.replace(/\b(the|a|an)\b/g, '').replace(/\s+/g, ' ');
   var toMatch = cleanText.match(/(?:from\s+)?(\w+)\s+to\s+(\w+)/i);
   var from = toMatch ? toMatch[1] : '';
@@ -750,6 +773,8 @@ function parseMileage(text) {
       .replace(/\bcorp\b/gi, '')
       .replace(/\bcorporate\b/gi, '')
       .replace(/\b\d{5,}\b/g, '')
+      // Auto-correct common misheard words
+      .replace(/\b(solder|soldier|sotter|sawder|saturday|suter)\b/gi, 'Sauder')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -1259,6 +1284,44 @@ function cancelDelete() {
   document.getElementById('deletePrompt').classList.remove('active');
 }
 
+async function fetchLastOdometerFromSheet() {
+  try {
+    var token = await getToken();
+    if (!token) return null;
+
+    var encodedPath = excelFilePath.split('/').map(function(segment) {
+      return encodeURIComponent(segment);
+    }).join('/');
+
+    // Get column C (Finish odometer) from Mileage sheet
+    var url = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath +
+              ':/workbook/worksheets/Mileage/range(address=\'C:C\')/usedRange';
+
+    var response = await fetch(url, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+
+    if (!response.ok) return null;
+
+    var data = await response.json();
+    var values = data.values;
+
+    // Find last non-empty value in column C (skip header row)
+    for (var i = values.length - 1; i >= 1; i--) {
+      if (values[i] && values[i][0] && values[i][0].toString().trim() !== '') {
+        var val = parseInt(values[i][0]);
+        if (!isNaN(val) && val > 0) {
+          return val;
+        }
+      }
+    }
+    return null;
+  } catch (e) {
+    console.error('Error fetching last odometer:', e);
+    return null;
+  }
+}
+
 async function executeDelete() {
   document.getElementById('deletePrompt').classList.remove('active');
 
@@ -1279,26 +1342,66 @@ async function executeDelete() {
       return encodeURIComponent(segment);
     }).join('/');
 
-    // Clear the row contents (A through H)
-    var rangeAddress = 'A' + lastSavedRow + ':H' + lastSavedRow;
-    var clearUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(lastSavedSheet) + '/range(address=\'' + rangeAddress + '\')/clear';
+    // For Mileage sheet, clear specific columns to preserve formulas in B and F
+    // For other sheets, clear the whole row
+    // Use PATCH with empty values instead of clear API to preserve formulas
+    var baseUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(lastSavedSheet);
 
-    var response = await fetch(clearUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ applyTo: 'Contents' })
-    });
+    if (lastSavedSheet === 'Mileage') {
+      // Clear A, C, D, E, G, H individually - preserving B and F formulas
+      var cellsToClear = [
+        { range: 'A' + lastSavedRow, values: [['']] },
+        { range: 'C' + lastSavedRow + ':E' + lastSavedRow, values: [['', '', '']] },
+        { range: 'G' + lastSavedRow + ':H' + lastSavedRow, values: [['', '']] }
+      ];
 
-    if (!response.ok) {
-      throw new Error('Failed to delete: HTTP ' + response.status);
+      for (var i = 0; i < cellsToClear.length; i++) {
+        var patchUrl = baseUrl + '/range(address=\'' + cellsToClear[i].range + '\')';
+        var response = await fetch(patchUrl, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ values: cellsToClear[i].values })
+        });
+        if (!response.ok) {
+          throw new Error('Failed to delete: HTTP ' + response.status);
+        }
+      }
+    } else {
+      // For other sheets, clear the whole row
+      var clearUrl = baseUrl + '/range(address=\'A' + lastSavedRow + ':H' + lastSavedRow + '\')/clear';
+      var response = await fetch(clearUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ applyTo: 'Contents' })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete: HTTP ' + response.status);
+      }
     }
 
     updateStatus('✅ Deleted row ' + lastSavedRow, false, 'success');
     hideCorrectButton();
     hideDeleteButton();
+
+    // If we deleted a Mileage entry, refresh lastOdometer from sheet
+    if (lastSavedSheet === 'Mileage') {
+      var actualLastOdo = await fetchLastOdometerFromSheet();
+      if (actualLastOdo !== null) {
+        lastOdometer = actualLastOdo;
+        localStorage.setItem('lastOdometer', actualLastOdo);
+      } else {
+        // No entries left, clear lastOdometer
+        lastOdometer = null;
+        localStorage.removeItem('lastOdometer');
+      }
+    }
+
     lastSavedRow = null;
     lastSavedSheet = null;
     lastSavedData = {};
