@@ -733,13 +733,20 @@ function parseSpokenNumber(text) {
 }
 
 function parseMileage(text) {
-  // First try to find odometer after keyword (kilometer, km, odometer)
+  // Priority 1: Direct digit capture after keyword (most reliable - avoids year contamination)
   var finish = null;
-  var kmMatch = text.match(/\b(kilometer|kilometers|km|odometer)\s+(.+)/i);
-  if (kmMatch) {
-    finish = parseSpokenNumber(kmMatch[2]);
+  var kmDigitMatch = text.match(/\b(?:kilometer|kilometers|km|odometer)\s+(\d{5,6})\b/i);
+  if (kmDigitMatch) {
+    finish = parseInt(kmDigitMatch[1]);
   }
-  // Fallback: parse from text with date patterns stripped
+  // Priority 2: Parse spoken number after keyword
+  if (!finish) {
+    var kmMatch = text.match(/\b(?:kilometer|kilometers|km|odometer)\s+(.+)/i);
+    if (kmMatch) {
+      finish = parseSpokenNumber(stripDatePatterns(kmMatch[1]));
+    }
+  }
+  // Priority 3: Fallback - parse from full text with date patterns stripped
   if (!finish) {
     finish = parseSpokenNumber(stripDatePatterns(text));
   }
@@ -747,6 +754,14 @@ function parseMileage(text) {
   var toMatch = cleanText.match(/(?:from\s+)?(\w+)\s+to\s+(\w+)/i);
   var from = toMatch ? toMatch[1] : '';
   var to = toMatch ? toMatch[2] : '';
+
+  // Strip stop words that may have been concatenated by voice recognition
+  if (from) {
+    from = from.replace(/(for|work|personal|corp|corporate)$/i, '').trim();
+  }
+  if (to) {
+    to = to.replace(/(for|work|personal|corp|corporate)$/i, '').trim();
+  }
 
   var wp = null;
   if (text.indexOf('work') !== -1 || text.indexOf('corp') !== -1 || text.indexOf('corporate') !== -1) wp = 'Work';
@@ -772,9 +787,11 @@ function parseMileage(text) {
       .replace(/\bpersonal\b/gi, '')
       .replace(/\bcorp\b/gi, '')
       .replace(/\bcorporate\b/gi, '')
+      .replace(/\bfor\b/gi, '')
       .replace(/\b\d{5,}\b/g, '')
       // Auto-correct common misheard words
-      .replace(/\b(solder|soldier|sotter|sawder|saturday|suter)\b/gi, 'Sauder')
+      .replace(/\b(solder|soldier|sotter|sawder|saturday|suter|sutter|sauter)\b/gi, 'Sauder')
+      .replace(/\bSauder\s+leadership\b/gi, 'Sauder Leadership')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -1138,7 +1155,12 @@ async function submitData(data, isCorrection) {
     };
   } else if (data.type === 'gas') {
     sheetName = 'Gas';
-    rowData = [data.date, data.odometer, data.liters, data.price, ''];
+    // Gas has formula in column E - write to A-D only
+    rowData = {
+      ranges: [
+        { col: 'A', values: [data.date, data.odometer, data.liters, data.price] }
+      ]
+    };
   } else if (data.type === 'expense') {
     sheetName = 'Expenses';
     rowData = [data.date, data.amount, data.vendor || '', data.description || '', data.category, data.corpPersonal, data.paidOn];
@@ -1222,7 +1244,12 @@ async function syncOfflineQueue() {
         };
       } else if (entry.type === 'gas') {
         sheetName = 'Gas';
-        rowData = [entry.date, entry.odometer, entry.liters, entry.price, ''];
+        // Gas has formula in column E - write to A-D only
+        rowData = {
+          ranges: [
+            { col: 'A', values: [entry.date, entry.odometer, entry.liters, entry.price] }
+          ]
+        };
       } else if (entry.type === 'expense') {
         sheetName = 'Expenses';
         rowData = [entry.date, entry.amount, entry.vendor || '', entry.description || '', entry.category, entry.corpPersonal, entry.paidOn];
@@ -1368,6 +1395,20 @@ async function executeDelete() {
         if (!response.ok) {
           throw new Error('Failed to delete: HTTP ' + response.status);
         }
+      }
+    } else if (lastSavedSheet === 'Gas') {
+      // Clear A, B, C, D - preserving E formula
+      var patchUrl = baseUrl + '/range(address=\'A' + lastSavedRow + ':D' + lastSavedRow + '\')';
+      var response = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values: [['', '', '', '']] })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete: HTTP ' + response.status);
       }
     } else {
       // For other sheets, clear the whole row
