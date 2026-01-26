@@ -241,10 +241,10 @@ var intentionalStop = false;
 var offlineQueue = JSON.parse(localStorage.getItem('expenseQueue') || '[]');
 
 var prompts = {
-  mileage: 'Example: "January 25th odometer 219500 from home to work for Sauder Leadership"\n\nDate (optional), odometer [number], from [place] to [place], work/personal, for [description]',
-  gas: 'Example: "$85 45 liters odometer 219400 kilometers"\n\nPrice ($X), liters (X liters), odometer [number] kilometers',
-  expense: 'Example: "amount $50 vendor Costco for groceries category meals personal"\n\namount $X, vendor [name] for [description], category [type], corp/personal\n\nCategories: Parking, Meals, Hotels, CME, Health, FYI, Donations',
-  allergy: 'Example: "0.3 both" or "0.25 right 0.3 left"\n\nDate (optional), dose (X both, or X right/left), notes [text]'
+  mileage: 'Date (if empty = today)\nKM Finish\nFrom\nTo\nWork or Personal\nFor (description)',
+  gas: 'Date (if empty = today)\nOdometer\nLitres\nPrice',
+  expense: 'Date (if empty = today)\nAmount, Vendor, for Description, Category,\nCorp/Personal, Card\n\nPersonal: FYI, Non-BUH, Donations, Special, Health\nAuto: Parking, Repairs, Wash\nCorp: Office, CME, License/Membership, BUH, Travel, Hotels, Meals, Gifts',
+  allergy: 'Date (if empty = today)\nRight, Left or Both amount\nNotes'
 };
 
 var categoryKeywords = {
