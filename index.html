@@ -961,7 +961,7 @@ function parseAllergy(text) {
       left = right;
     }
   } else {
-    var rightMatch = text.match(/(\d+(?:\.\d+)?)\s*right/i) || text.match(/right\s*(\d+(?:\.\d+)?)/i);
+    var rightMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:right|write)/i) || text.match(/(?:right|write)\s*(\d+(?:\.\d+)?)/i);
     var leftMatch = text.match(/(\d+(?:\.\d+)?)\s*left/i) || text.match(/left\s*(\d+(?:\.\d+)?)/i);
     if (rightMatch) right = parseFloat(rightMatch[1]);
     if (leftMatch) left = parseFloat(leftMatch[1]);
