@@ -5,15 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Expense Tracker</title>
+<script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
 <style type="text/css">
 body { font-family: -apple-system, sans-serif; background: #1a1a2e; margin: 0; padding: 20px; min-height: 100vh; box-sizing: border-box; }
 h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
-.config { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; }
-.config label { color: white; font-size: 12px; display: block; margin-bottom: 5px; }
-.config input { width: 100%; padding: 10px; border: none; border-radius: 5px; font-size: 14px; box-sizing: border-box; margin-bottom: 10px; }
-.config button { padding: 10px 15px; background: #4facfe; color: white; border: none; border-radius: 5px; font-size: 14px; margin-right: 10px; }
-.config .btn-test { background: #43e97b; }
-.config .btn-hide { background: #666; }
+.auth-section { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
+.auth-section p { color: white; font-size: 14px; margin-bottom: 15px; }
+.btn-signin { padding: 12px 25px; background: #0078d4; color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; }
+.btn-signout { padding: 8px 15px; background: #666; color: white; border: none; border-radius: 5px; font-size: 12px; cursor: pointer; }
+.user-info { color: #43e97b; font-size: 14px; margin-bottom: 10px; }
+.queue-info { color: #ffa502; font-size: 12px; margin-top: 10px; }
 .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
 .btn { padding: 20px 15px; font-size: 16px; font-weight: bold; border: none; border-radius: 15px; color: white; text-align: center; }
 .btn-mileage { background: #667eea; }
@@ -28,6 +29,7 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 .btn-correct { background: #ffa502; padding: 12px 20px; font-size: 14px; margin-top: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .btn-delete { background: #ff4757; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .btn-retry { background: #ff6b81; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
+.btn-sync { background: #0078d4; padding: 12px 20px; font-size: 14px; margin-top: 10px; margin-left: 10px; border: none; border-radius: 10px; color: white; font-weight: bold; }
 .recording-label { color: #ff4757; text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 10px; }
 .status { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 15px; color: white; min-height: 120px; }
 .status-label { font-size: 11px; opacity: 0.7; margin-bottom: 8px; }
@@ -61,16 +63,20 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 </head>
 <body>
 
-<div class="offline-banner" id="offlineBanner">📵 No internet connection</div>
+<div class="offline-banner" id="offlineBanner">📵 Offline - entries will sync when connected</div>
 
 <h1>📊 Expense Tracker</h1>
 
-<div class="config" id="configSection">
-<label>Google Apps Script URL:</label>
-<input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/...">
-<button onclick="saveConfig()">Save</button>
-<button class="btn-test" onclick="testConnection()">Test</button>
-<button class="btn-hide" onclick="hideConfig()">Hide</button>
+<div class="auth-section" id="authSection">
+<div id="notSignedIn">
+<p>Sign in with your Microsoft account to sync with your Excel file</p>
+<button class="btn-signin" onclick="signIn()">Sign in with Microsoft</button>
+</div>
+<div id="signedIn" class="hidden">
+<div class="user-info" id="userInfo"></div>
+<button class="btn-signout" onclick="signOut()">Sign out</button>
+<div class="queue-info hidden" id="queueInfo"></div>
+</div>
 </div>
 
 <div class="buttons" id="mainButtons">
@@ -97,7 +103,7 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 <div class="status">
 <div class="status-label">Status</div>
 <div class="prompt-text hidden" id="promptText"></div>
-<div class="status-text" id="statusText">Tap a button to start</div>
+<div class="status-text" id="statusText">Sign in to start tracking expenses</div>
 <div class="transcript-box hidden" id="transcriptBox">
 <div class="transcript-text" id="transcriptText"></div>
 </div>
@@ -116,6 +122,9 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 </button>
 <button class="btn btn-retry hidden" id="retryButton" onclick="retryLastSubmit()">
 🔄 Retry
+</button>
+<button class="btn btn-sync hidden" id="syncButton" onclick="syncOfflineQueue()">
+📤 Sync Now
 </button>
 </div>
 
@@ -154,6 +163,26 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 </div>
 
 <script>
+// Microsoft Authentication Configuration
+var msalConfig = {
+  auth: {
+    clientId: '631c42f5-7d47-4e12-b22d-addf5cf595c9',
+    authority: 'https://login.microsoftonline.com/consumers',
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: {
+    cacheLocation: 'localStorage',
+    storeAuthStateInCookie: false
+  }
+};
+
+var msalInstance = new msal.PublicClientApplication(msalConfig);
+var accessToken = null;
+
+// Excel file path in OneDrive
+var excelFilePath = '/03. ACCOUNTING/2026/2026 EXPENSES.xlsx';
+
+// Voice recognition variables
 var recognition;
 var currentType = null;
 var pendingData = {};
@@ -164,11 +193,14 @@ var lastSubmitData = null;
 var spokenText = '';
 var submitAttempts = 0;
 var maxRetries = 3;
-var requestTimeout = 15000;
+var requestTimeout = 30000;
 var micRetryCount = 0;
 var maxMicRetries = 3;
 var isRecognitionActive = false;
 var intentionalStop = false;
+
+// Offline queue
+var offlineQueue = JSON.parse(localStorage.getItem('expenseQueue') || '[]');
 
 var prompts = {
   mileage: 'Date (if empty = today)\nFinish\nFrom\nTo\nWork or Personal\nFor (description)',
@@ -228,10 +260,90 @@ var categoryKeywords = {
 
 var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals & Entertainment', 'Promotions/Gifts/Tickets', 'Office/Postage/Stationery', 'Hotels', 'Travel Fares', 'Phone/Internet', 'Other Business', 'BUH', 'CME', 'License/Membership Fees', 'NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health'];
 
+// Microsoft Authentication Functions
+async function signIn() {
+  try {
+    var loginRequest = {
+      scopes: ['Files.ReadWrite', 'User.Read']
+    };
+    var response = await msalInstance.loginPopup(loginRequest);
+    await getToken();
+    updateAuthUI();
+    updateStatus('Ready. Tap a button to start.');
+  } catch (error) {
+    console.error('Login error:', error);
+    updateStatus('Sign in failed: ' + error.message, true);
+  }
+}
+
+function signOut() {
+  msalInstance.logoutPopup();
+  accessToken = null;
+  updateAuthUI();
+  updateStatus('Signed out. Sign in to track expenses.');
+}
+
+async function getToken() {
+  var accounts = msalInstance.getAllAccounts();
+  if (accounts.length === 0) {
+    return null;
+  }
+
+  var tokenRequest = {
+    scopes: ['Files.ReadWrite', 'User.Read'],
+    account: accounts[0]
+  };
+
+  try {
+    var response = await msalInstance.acquireTokenSilent(tokenRequest);
+    accessToken = response.accessToken;
+    return accessToken;
+  } catch (error) {
+    if (error.name === 'InteractionRequiredAuthError') {
+      var response = await msalInstance.acquireTokenPopup(tokenRequest);
+      accessToken = response.accessToken;
+      return accessToken;
+    }
+    throw error;
+  }
+}
+
+function updateAuthUI() {
+  var accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    document.getElementById('notSignedIn').classList.add('hidden');
+    document.getElementById('signedIn').classList.remove('hidden');
+    document.getElementById('userInfo').textContent = '✓ ' + accounts[0].username;
+    document.getElementById('mainButtons').classList.remove('disabled');
+    updateQueueInfo();
+  } else {
+    document.getElementById('notSignedIn').classList.remove('hidden');
+    document.getElementById('signedIn').classList.add('hidden');
+    document.getElementById('mainButtons').classList.add('disabled');
+  }
+}
+
+function updateQueueInfo() {
+  var queueInfo = document.getElementById('queueInfo');
+  var syncBtn = document.getElementById('syncButton');
+  if (offlineQueue.length > 0) {
+    queueInfo.textContent = '📋 ' + offlineQueue.length + ' entries waiting to sync';
+    queueInfo.classList.remove('hidden');
+    syncBtn.classList.remove('hidden');
+  } else {
+    queueInfo.classList.add('hidden');
+    syncBtn.classList.add('hidden');
+  }
+}
+
+// Online/Offline handling
 function updateOnlineStatus() {
   var banner = document.getElementById('offlineBanner');
   if (navigator.onLine) {
     banner.classList.remove('show');
+    if (offlineQueue.length > 0 && accessToken) {
+      syncOfflineQueue();
+    }
   } else {
     banner.classList.add('show');
   }
@@ -240,6 +352,7 @@ function updateOnlineStatus() {
 window.addEventListener('online', updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 
+// Initialize speech recognition
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRecognition();
@@ -263,7 +376,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
   recognition.onerror = function(event) {
     isRecognitionActive = false;
-
     if ((event.error === 'aborted' || event.error === 'no-speech') && micRetryCount < maxMicRetries) {
       micRetryCount++;
       setTimeout(function() {
@@ -278,7 +390,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       }, 1000);
       return;
     }
-
     updateStatus('Mic error: ' + event.error + '. Tap button to try again.', true);
     showMainButtons();
   };
@@ -288,67 +399,28 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   };
 }
 
-window.onload = function() {
+// Initialize on page load
+window.onload = async function() {
   updateOnlineStatus();
-  var savedUrl = localStorage.getItem('scriptUrl');
-  if (savedUrl) {
-    document.getElementById('scriptUrl').value = savedUrl;
-    document.getElementById('configSection').classList.add('hidden');
-    updateStatus('Ready. Tap a button to start.');
+
+  // Check if already signed in
+  var accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    try {
+      await getToken();
+      updateAuthUI();
+      updateStatus('Ready. Tap a button to start.');
+    } catch (e) {
+      updateAuthUI();
+      updateStatus('Sign in to start tracking expenses.');
+    }
   } else {
-    updateStatus('Enter your Script URL, tap Save, then Test.');
+    updateAuthUI();
+    updateStatus('Sign in to start tracking expenses.');
   }
+
+  updateQueueInfo();
 };
-
-function saveConfig() {
-  var url = document.getElementById('scriptUrl').value.trim();
-  if (url) {
-    localStorage.setItem('scriptUrl', url);
-    updateStatus('URL saved! Tap Test to verify.', false, 'success');
-  }
-}
-
-function hideConfig() {
-  document.getElementById('configSection').classList.add('hidden');
-}
-
-function testConnection() {
-  var url = document.getElementById('scriptUrl').value.trim();
-  if (!url) {
-    updateStatus('Enter a Script URL first.', true);
-    return;
-  }
-
-  if (!navigator.onLine) {
-    updateStatus('No internet. Connect and try again.', true);
-    return;
-  }
-
-  updateStatus('Testing...', false, 'warning');
-
-  var testUrl = url + '?type=test&t=' + Date.now();
-
-  var img = new Image();
-  var done = false;
-
-  var timeout = setTimeout(function() {
-    if (!done) {
-      done = true;
-      updateStatus('⚠️ Slow or no response. Check URL.', true);
-    }
-  }, 10000);
-
-  img.onload = img.onerror = function() {
-    if (!done) {
-      done = true;
-      clearTimeout(timeout);
-      localStorage.setItem('scriptUrl', url);
-      updateStatus('✅ Connected! Tap Hide to close settings.', false, 'success');
-    }
-  };
-
-  img.src = testUrl;
-}
 
 function updateStatus(text, isError, statusType) {
   var el = document.getElementById('statusText');
@@ -435,8 +507,9 @@ function clearActiveButton() {
 }
 
 function startEntry(type) {
-  if (!navigator.onLine) {
-    updateStatus('No internet. Connect and try again.', true);
+  var accounts = msalInstance.getAllAccounts();
+  if (accounts.length === 0) {
+    updateStatus('Please sign in first.', true);
     return;
   }
 
@@ -466,13 +539,10 @@ function startEntry(type) {
   setActiveButton(type);
 
   if (recognition) {
-    // Stop any existing recognition first
     if (isRecognitionActive) {
       try { recognition.stop(); } catch(e) {}
     }
-
     intentionalStop = false;
-
     setTimeout(function() {
       try {
         recognition.start();
@@ -542,18 +612,10 @@ function parseDate(text) {
   }
 
   var months = {
-    'january': 0, 'jan': 0,
-    'february': 1, 'feb': 1,
-    'march': 2, 'mar': 2,
-    'april': 3, 'apr': 3,
-    'may': 4,
-    'june': 5, 'jun': 5,
-    'july': 6, 'jul': 6,
-    'august': 7, 'aug': 7,
-    'september': 8, 'sep': 8, 'sept': 8,
-    'october': 9, 'oct': 9,
-    'november': 10, 'nov': 10,
-    'december': 11, 'dec': 11
+    'january': 0, 'jan': 0, 'february': 1, 'feb': 1, 'march': 2, 'mar': 2,
+    'april': 3, 'apr': 3, 'may': 4, 'june': 5, 'jun': 5, 'july': 6, 'jul': 6,
+    'august': 7, 'aug': 7, 'september': 8, 'sep': 8, 'sept': 8,
+    'october': 9, 'oct': 9, 'november': 10, 'nov': 10, 'december': 11, 'dec': 11
   };
 
   var monthDayMatch = text.match(/(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
@@ -633,7 +695,6 @@ function parseSpokenNumber(text) {
 
 function parseMileage(text) {
   var finish = parseSpokenNumber(text);
-
   var cleanText = text.replace(/\b(the|a|an)\b/g, '').replace(/\s+/g, ' ');
   var toMatch = cleanText.match(/(?:from\s+)?(\w+)\s+to\s+(\w+)/i);
   var from = toMatch ? toMatch[1] : '';
@@ -673,7 +734,6 @@ function parseMileage(text) {
 
 function parseGas(text) {
   var price = null;
-  
   var priceMatch = text.match(/\$\s*(\d+(?:\.\d+)?)/i);
   if (priceMatch) {
     price = parseFloat(priceMatch[1]);
@@ -761,16 +821,12 @@ function parseExpense(text) {
 
   var vendor = '';
   var description = '';
-  
   var textAfterAmount = text.substring(amountEndPos).trim();
-  
   var forPos = textAfterAmount.toLowerCase().indexOf(' for ');
-  
+
   if (forPos !== -1) {
     vendor = textAfterAmount.substring(0, forPos).trim();
-    
     var afterFor = textAfterAmount.substring(forPos + 5).trim();
-    
     if (matchedKeyword) {
       var catPosInAfterFor = afterFor.toLowerCase().indexOf(matchedKeyword);
       if (catPosInAfterFor !== -1) {
@@ -781,20 +837,13 @@ function parseExpense(text) {
     } else {
       description = afterFor;
     }
-    
-    description = description
-      .replace(/\b(corp|corporate|personal)\b/gi, '')
-      .trim();
+    description = description.replace(/\b(corp|corporate|personal)\b/gi, '').trim();
   } else {
     if (categoryPos !== -1) {
       var vendorText = textAfterAmount.substring(0, textAfterAmount.toLowerCase().indexOf(matchedKeyword));
-      vendor = vendorText
-        .replace(/\b(corp|corporate|personal)\b/gi, '')
-        .trim();
+      vendor = vendorText.replace(/\b(corp|corporate|personal)\b/gi, '').trim();
     } else {
-      vendor = textAfterAmount
-        .replace(/\b(corp|corporate|personal)\b/gi, '')
-        .trim();
+      vendor = textAfterAmount.replace(/\b(corp|corporate|personal)\b/gi, '').trim();
     }
   }
 
@@ -864,17 +913,201 @@ function selectCorp(value) {
   submitData(pendingData, false);
 }
 
-function confirmDelete() {
-  var desc = '';
-  if (lastSavedData.type === 'mileage') {
-    desc = 'Mileage: ' + lastSavedData.finish + ' km, ' + lastSavedData.from + '→' + lastSavedData.to;
-  } else if (lastSavedData.type === 'gas') {
-    desc = 'Gas: $' + lastSavedData.price + ', ' + lastSavedData.liters + 'L';
-  } else if (lastSavedData.type === 'expense') {
-    desc = 'Expense: $' + lastSavedData.amount + ' ' + lastSavedData.category;
-  } else if (lastSavedData.type === 'allergy') {
-    desc = 'Allergy: R=' + (lastSavedData.right || '-') + ', L=' + (lastSavedData.left || '-');
+// Microsoft Graph API - Add row to Excel
+async function addRowToExcel(sheetName, rowData) {
+  var token = await getToken();
+  if (!token) {
+    throw new Error('Not authenticated');
   }
+
+  // Get the used range to find the last row
+  var usedRangeUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + excelFilePath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/usedRange';
+
+  var usedRangeResponse = await fetch(usedRangeUrl, {
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+
+  if (!usedRangeResponse.ok) {
+    throw new Error('Failed to get worksheet range');
+  }
+
+  var usedRangeData = await usedRangeResponse.json();
+  var lastRow = usedRangeData.rowCount + 1; // Next row after used range
+
+  // Build the range address for the new row
+  var numColumns = rowData.length;
+  var endColumn = String.fromCharCode(64 + numColumns); // A=1, B=2, etc.
+  var rangeAddress = 'A' + lastRow + ':' + endColumn + lastRow;
+
+  // Write the new row
+  var updateUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + excelFilePath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/range(address=\'' + rangeAddress + '\')';
+
+  var updateResponse = await fetch(updateUrl, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      values: [rowData]
+    })
+  });
+
+  if (!updateResponse.ok) {
+    var errorData = await updateResponse.json();
+    throw new Error(errorData.error?.message || 'Failed to add row');
+  }
+
+  return { success: true, row: lastRow };
+}
+
+async function submitData(data, isCorrection) {
+  submitAttempts++;
+  lastSubmitData = { data: data, isCorrection: isCorrection };
+
+  // If offline, queue the entry
+  if (!navigator.onLine) {
+    queueOfflineEntry(data);
+    var summary = getSummary(data);
+    updateStatus('📋 Queued (offline): ' + summary, false, 'warning');
+    hideRetryButton();
+    updateQueueInfo();
+    return;
+  }
+
+  updateStatus('Saving... (' + submitAttempts + '/' + maxRetries + ')', false, 'warning');
+  hideCorrectButton();
+  hideDeleteButton();
+  hideRetryButton();
+
+  try {
+    var sheetName, rowData;
+
+    if (data.type === 'mileage') {
+      sheetName = 'Mileage';
+      rowData = [data.date, '', data.finish, data.from || '', data.to || '', '', data.wp, data.description || ''];
+    } else if (data.type === 'gas') {
+      sheetName = 'Gas';
+      rowData = [data.date, data.odometer, data.liters, data.price, ''];
+    } else if (data.type === 'expense') {
+      sheetName = 'Expenses';
+      rowData = [data.date, data.amount, data.vendor || '', data.description || '', data.category, data.corpPersonal, data.paidOn];
+    } else if (data.type === 'allergy') {
+      sheetName = 'Allergy Shots';
+      rowData = [data.date, data.right || '', data.left || '', data.notes || ''];
+    }
+
+    var result = await addRowToExcel(sheetName, rowData);
+
+    lastSavedData = JSON.parse(JSON.stringify(data));
+    lastSavedSheet = sheetName;
+    lastSavedRow = result.row;
+
+    showSuccess(data, isCorrection);
+
+  } catch (error) {
+    console.error('Submit error:', error);
+
+    if (submitAttempts < maxRetries) {
+      setTimeout(function() {
+        submitData(data, isCorrection);
+      }, 2000);
+    } else {
+      // Queue for later if all retries failed
+      queueOfflineEntry(data);
+      updateStatus('⚠️ Queued for later: ' + error.message, false, 'warning');
+      showRetryButton();
+      updateQueueInfo();
+    }
+  }
+}
+
+function queueOfflineEntry(data) {
+  data.queuedAt = new Date().toISOString();
+  offlineQueue.push(data);
+  localStorage.setItem('expenseQueue', JSON.stringify(offlineQueue));
+}
+
+async function syncOfflineQueue() {
+  if (offlineQueue.length === 0) {
+    updateStatus('No entries to sync.', false);
+    return;
+  }
+
+  if (!navigator.onLine) {
+    updateStatus('Cannot sync - no internet connection.', true);
+    return;
+  }
+
+  updateStatus('Syncing ' + offlineQueue.length + ' entries...', false, 'warning');
+
+  var succeeded = 0;
+  var failed = 0;
+  var remaining = [];
+
+  for (var i = 0; i < offlineQueue.length; i++) {
+    var entry = offlineQueue[i];
+    try {
+      var sheetName, rowData;
+
+      if (entry.type === 'mileage') {
+        sheetName = 'Mileage';
+        rowData = [entry.date, '', entry.finish, entry.from || '', entry.to || '', '', entry.wp, entry.description || ''];
+      } else if (entry.type === 'gas') {
+        sheetName = 'Gas';
+        rowData = [entry.date, entry.odometer, entry.liters, entry.price, ''];
+      } else if (entry.type === 'expense') {
+        sheetName = 'Expenses';
+        rowData = [entry.date, entry.amount, entry.vendor || '', entry.description || '', entry.category, entry.corpPersonal, entry.paidOn];
+      } else if (entry.type === 'allergy') {
+        sheetName = 'Allergy Shots';
+        rowData = [entry.date, entry.right || '', entry.left || '', entry.notes || ''];
+      }
+
+      await addRowToExcel(sheetName, rowData);
+      succeeded++;
+      updateStatus('Syncing... ' + succeeded + ' done', false, 'warning');
+
+    } catch (error) {
+      console.error('Sync error for entry:', error);
+      remaining.push(entry);
+      failed++;
+    }
+  }
+
+  offlineQueue = remaining;
+  localStorage.setItem('expenseQueue', JSON.stringify(offlineQueue));
+  updateQueueInfo();
+
+  if (failed === 0) {
+    updateStatus('✅ Synced ' + succeeded + ' entries!', false, 'success');
+  } else {
+    updateStatus('⚠️ Synced ' + succeeded + ', failed ' + failed, false, 'warning');
+  }
+}
+
+function getSummary(data) {
+  if (data.type === 'mileage') return data.finish + ' km, ' + data.from + '→' + data.to + ', ' + data.wp;
+  if (data.type === 'gas') return '$' + data.price + ', ' + data.liters + 'L';
+  if (data.type === 'expense') return '$' + data.amount + ' ' + data.category;
+  if (data.type === 'allergy') return 'R=' + (data.right || '-') + ', L=' + (data.left || '-');
+  return '';
+}
+
+function showSuccess(data, isCorrection) {
+  var summary = getSummary(data);
+  if (isCorrection) {
+    updateStatus('✅ Fixed: ' + summary, false, 'success');
+  } else {
+    updateStatus('✅ ' + summary, false, 'success');
+  }
+  hideRetryButton();
+  showCorrectButton();
+  showDeleteButton();
+}
+
+function confirmDelete() {
+  var desc = getSummary(lastSavedData);
   document.getElementById('deleteDescription').textContent = 'Delete: ' + desc + '?';
   document.getElementById('deletePrompt').classList.add('active');
 }
@@ -883,61 +1116,17 @@ function cancelDelete() {
   document.getElementById('deletePrompt').classList.remove('active');
 }
 
-function executeDelete() {
+async function executeDelete() {
   document.getElementById('deletePrompt').classList.remove('active');
+  updateStatus('Delete not yet implemented for Excel. Please delete manually.', false, 'warning');
+  // Note: Deleting rows from Excel via Graph API is complex - would need to clear the row or shift rows
+}
 
-  if (!lastSavedSheet || !lastSavedData.type) {
-    updateStatus('Cannot delete - info missing.', true);
-    return;
+function retryLastSubmit() {
+  if (lastSubmitData) {
+    submitAttempts = 0;
+    submitData(lastSubmitData.data, lastSubmitData.isCorrection);
   }
-
-  var scriptUrl = localStorage.getItem('scriptUrl');
-  if (!scriptUrl) {
-    updateStatus('No Script URL.', true);
-    return;
-  }
-
-  var deleteValue;
-  if (lastSavedData.type === 'mileage') deleteValue = lastSavedData.finish;
-  if (lastSavedData.type === 'gas') deleteValue = lastSavedData.odometer;
-  if (lastSavedData.type === 'expense') deleteValue = lastSavedData.amount;
-  if (lastSavedData.type === 'allergy') deleteValue = lastSavedData.right;
-
-  updateStatus('Deleting...', false, 'warning');
-  hideCorrectButton();
-  hideDeleteButton();
-
-  var params = [
-    'type=delete',
-    'deleteSheet=' + encodeURIComponent(lastSavedSheet),
-    'deleteValue=' + encodeURIComponent(deleteValue),
-    't=' + Date.now()
-  ];
-
-  var url = scriptUrl + '?' + params.join('&');
-
-  var img = new Image();
-  var done = false;
-
-  var timeout = setTimeout(function() {
-    if (!done) {
-      done = true;
-      updateStatus('⚠️ Delete may have failed. Check sheet.', false, 'warning');
-    }
-  }, requestTimeout);
-
-  img.onload = img.onerror = function() {
-    if (!done) {
-      done = true;
-      clearTimeout(timeout);
-      updateStatus('🗑️ Deleted successfully.', false, 'success');
-      lastSavedRow = null;
-      lastSavedSheet = null;
-      lastSavedData = {};
-    }
-  };
-
-  img.src = url;
 }
 
 function showCorrectForm() {
@@ -1019,122 +1208,12 @@ function saveCorrection() {
     correctedData.notes = document.getElementById('editNotes').value;
   }
 
-  if (lastSavedSheet) {
-    correctedData.deleteSheet = lastSavedSheet;
-    if (lastSavedData.type === 'mileage') correctedData.originalValue = lastSavedData.finish;
-    if (lastSavedData.type === 'gas') correctedData.originalValue = lastSavedData.odometer;
-    if (lastSavedData.type === 'expense') correctedData.originalValue = lastSavedData.amount;
-    if (lastSavedData.type === 'allergy') correctedData.originalValue = lastSavedData.right;
-  }
-
   document.getElementById('editPrompt').classList.remove('active');
   submitData(correctedData, true);
 }
 
 function cancelCorrection() {
   document.getElementById('editPrompt').classList.remove('active');
-}
-
-function retryLastSubmit() {
-  if (lastSubmitData) {
-    submitAttempts = 0;
-    submitData(lastSubmitData.data, lastSubmitData.isCorrection);
-  }
-}
-
-function submitData(data, isCorrection) {
-  var scriptUrl = localStorage.getItem('scriptUrl');
-  if (!scriptUrl) {
-    updateStatus('No Script URL. Set it in settings.', true);
-    document.getElementById('configSection').classList.remove('hidden');
-    return;
-  }
-
-  if (!navigator.onLine) {
-    updateStatus('No internet. Connect and tap Retry.', true);
-    lastSubmitData = { data: data, isCorrection: isCorrection };
-    showRetryButton();
-    return;
-  }
-
-  submitAttempts++;
-  lastSubmitData = { data: data, isCorrection: isCorrection };
-
-  updateStatus('Saving... (' + submitAttempts + '/' + maxRetries + ')', false, 'warning');
-  hideCorrectButton();
-  hideDeleteButton();
-  hideRetryButton();
-
-  var params = [];
-  for (var key in data) {
-    if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
-      params.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
-    }
-  }
-  params.push('t=' + Date.now());
-
-  var url = scriptUrl + '?' + params.join('&');
-
-  var dataToStore = JSON.parse(JSON.stringify(data));
-  delete dataToStore.deleteRow;
-  delete dataToStore.deleteSheet;
-  delete dataToStore.originalValue;
-  lastSavedData = dataToStore;
-
-  var sheetMap = {
-    'mileage': 'Mileage',
-    'gas': 'Gas',
-    'expense': 'Expenses',
-    'allergy': 'Allergy Shots'
-  };
-
-  var done = false;
-
-  var timeout = setTimeout(function() {
-    if (!done) {
-      done = true;
-      if (submitAttempts < maxRetries) {
-        submitData(data, isCorrection);
-      } else {
-        updateStatus('⚠️ Slow network. Tap Retry or check sheet.', false, 'warning');
-        lastSavedSheet = sheetMap[data.type];
-        lastSavedRow = 2;
-        showRetryButton();
-        showCorrectButton();
-        showDeleteButton();
-      }
-    }
-  }, requestTimeout);
-
-  var img = new Image();
-  img.onload = img.onerror = function() {
-    if (!done) {
-      done = true;
-      clearTimeout(timeout);
-      lastSavedSheet = sheetMap[data.type];
-      lastSavedRow = 2;
-      showSuccess(data, isCorrection);
-    }
-  };
-  img.src = url;
-}
-
-function showSuccess(data, isCorrection) {
-  var summary = '';
-  if (data.type === 'mileage') summary = data.finish + ' km, ' + data.from + '→' + data.to + ', ' + data.wp;
-  else if (data.type === 'gas') summary = '$' + data.price + ', ' + data.liters + 'L';
-  else if (data.type === 'expense') summary = '$' + data.amount + ' ' + data.category;
-  else if (data.type === 'allergy') summary = 'R=' + (data.right || '-') + ', L=' + (data.left || '-');
-
-  if (isCorrection) {
-    updateStatus('✅ Fixed: ' + summary, false, 'success');
-  } else {
-    updateStatus('✅ ' + summary, false, 'success');
-  }
-
-  hideRetryButton();
-  showCorrectButton();
-  showDeleteButton();
 }
 </script>
 
