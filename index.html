@@ -203,6 +203,7 @@ var lastSavedData = {};
 var lastSavedRow = null;
 var lastSavedSheet = null;
 var lastSubmitData = null;
+var lastOdometer = localStorage.getItem('lastOdometer') ? parseInt(localStorage.getItem('lastOdometer')) : null;
 var spokenText = '';
 var submitAttempts = 0;
 var maxRetries = 3;
@@ -759,6 +760,16 @@ function parseMileage(text) {
     updateStatus('Could not find odometer. Tap 🚗 to try again.', true);
     return;
   }
+
+  // Warn if odometer is lower than previous (likely voice recognition error)
+  if (lastOdometer && finish < lastOdometer) {
+    var diff = lastOdometer - finish;
+    if (!confirm('Warning: Odometer ' + finish + ' is ' + diff + ' km LOWER than last entry (' + lastOdometer + ').\n\nThis may be a voice recognition error.\n\nSubmit anyway?')) {
+      updateStatus('Cancelled. Tap 🚗 to try again.', false, 'warning');
+      return;
+    }
+  }
+
   if (!wp) {
     document.getElementById('wpPrompt').classList.add('active');
   } else {
@@ -948,8 +959,9 @@ function selectCorp(value) {
 }
 
 // Microsoft Graph API - Add row to Excel
-async function addRowToExcel(sheetName, rowData) {
-  debugLog('Starting save to sheet: ' + sheetName);
+// targetRow is optional - if provided, writes to that row; otherwise finds first empty row
+async function addRowToExcel(sheetName, rowData, targetRow) {
+  debugLog('Starting save to sheet: ' + sheetName + (targetRow ? ' (updating row ' + targetRow + ')' : ''));
 
   var token = await getToken();
   if (!token) {
@@ -964,35 +976,43 @@ async function addRowToExcel(sheetName, rowData) {
   }).join('/');
   debugLog('File path: ' + encodedPath);
 
-  // Get Column A (Date) to find first empty row - ignores formula-only rows
-  var colAUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/range(address=\'A1:A500\')';
+  var lastRow;
 
-  debugLog('Fetching Column A to find first empty row...');
-  var colAResponse = await fetch(colAUrl, {
-    headers: { 'Authorization': 'Bearer ' + token }
-  });
+  // If targetRow provided (for corrections), use it; otherwise find first empty row
+  if (targetRow) {
+    lastRow = targetRow;
+    debugLog('Using target row: ' + lastRow);
+  } else {
+    // Get Column A (Date) to find first empty row - ignores formula-only rows
+    var colAUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/range(address=\'A1:A500\')';
 
-  debugLog('Column A response: HTTP ' + colAResponse.status);
+    debugLog('Fetching Column A to find first empty row...');
+    var colAResponse = await fetch(colAUrl, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
 
-  if (!colAResponse.ok) {
-    var errorText = await colAResponse.text();
-    debugLog('ERROR: ' + errorText, true);
-    throw new Error('Sheet "' + sheetName + '" not found or file error (HTTP ' + colAResponse.status + ')');
-  }
+    debugLog('Column A response: HTTP ' + colAResponse.status);
 
-  var colAData = await colAResponse.json();
-  var values = colAData.values || [];
-
-  // Find first empty row in Column A (skip header row)
-  var lastRow = 2; // Start at row 2 (after header)
-  for (var i = 1; i < values.length; i++) {
-    if (!values[i] || !values[i][0] || values[i][0].toString().trim() === '') {
-      lastRow = i + 1; // Found first empty row (i is 0-indexed, +1 for Excel row)
-      break;
+    if (!colAResponse.ok) {
+      var errorText = await colAResponse.text();
+      debugLog('ERROR: ' + errorText, true);
+      throw new Error('Sheet "' + sheetName + '" not found or file error (HTTP ' + colAResponse.status + ')');
     }
-    lastRow = i + 2; // If no empty found, use next row after last data
+
+    var colAData = await colAResponse.json();
+    var values = colAData.values || [];
+
+    // Find first empty row in Column A (skip header row)
+    lastRow = 2; // Start at row 2 (after header)
+    for (var i = 1; i < values.length; i++) {
+      if (!values[i] || !values[i][0] || values[i][0].toString().trim() === '') {
+        lastRow = i + 1; // Found first empty row (i is 0-indexed, +1 for Excel row)
+        break;
+      }
+      lastRow = i + 2; // If no empty found, use next row after last data
+    }
+    debugLog('First empty Date row: ' + lastRow);
   }
-  debugLog('First empty Date row: ' + lastRow);
 
   // Handle new format with multiple ranges (to skip formula columns)
   if (rowData.ranges) {
@@ -1102,14 +1122,22 @@ async function submitData(data, isCorrection) {
     rowData = [data.date, data.right || '', data.left || '', data.notes || ''];
   }
 
-  updateStatus('Saving to ' + sheetName + '... (' + submitAttempts + '/' + maxRetries + ')', false, 'warning');
+  updateStatus((isCorrection ? 'Updating' : 'Saving to') + ' ' + sheetName + '... (' + submitAttempts + '/' + maxRetries + ')', false, 'warning');
 
   try {
-    var result = await addRowToExcel(sheetName, rowData);
+    // If correcting, update the same row; otherwise find new empty row
+    var targetRow = isCorrection ? lastSavedRow : null;
+    var result = await addRowToExcel(sheetName, rowData, targetRow);
 
     lastSavedData = JSON.parse(JSON.stringify(data));
     lastSavedSheet = sheetName;
     lastSavedRow = result.row;
+
+    // Save odometer for validation of future entries
+    if (data.type === 'mileage' && data.finish) {
+      lastOdometer = data.finish;
+      localStorage.setItem('lastOdometer', data.finish);
+    }
 
     showSuccess(data, isCorrection);
 
@@ -1233,8 +1261,52 @@ function cancelDelete() {
 
 async function executeDelete() {
   document.getElementById('deletePrompt').classList.remove('active');
-  updateStatus('Delete not yet implemented for Excel. Please delete manually.', false, 'warning');
-  // Note: Deleting rows from Excel via Graph API is complex - would need to clear the row or shift rows
+
+  if (!lastSavedRow || !lastSavedSheet) {
+    updateStatus('No entry to delete.', false, 'warning');
+    return;
+  }
+
+  updateStatus('Deleting row ' + lastSavedRow + '...', false, 'warning');
+
+  try {
+    var token = await getToken();
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+
+    var encodedPath = excelFilePath.split('/').map(function(segment) {
+      return encodeURIComponent(segment);
+    }).join('/');
+
+    // Clear the row contents (A through H)
+    var rangeAddress = 'A' + lastSavedRow + ':H' + lastSavedRow;
+    var clearUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(lastSavedSheet) + '/range(address=\'' + rangeAddress + '\')/clear';
+
+    var response = await fetch(clearUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ applyTo: 'Contents' })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete: HTTP ' + response.status);
+    }
+
+    updateStatus('✅ Deleted row ' + lastSavedRow, false, 'success');
+    hideCorrectButton();
+    hideDeleteButton();
+    lastSavedRow = null;
+    lastSavedSheet = null;
+    lastSavedData = {};
+
+  } catch (error) {
+    console.error('Delete error:', error);
+    updateStatus('Delete failed: ' + error.message, true);
+  }
 }
 
 function retryLastSubmit() {
