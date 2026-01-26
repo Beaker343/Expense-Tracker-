@@ -982,13 +982,46 @@ async function addRowToExcel(sheetName, rowData) {
   }
   debugLog('First empty Date row: ' + lastRow);
 
-  // Build the range address for the new row
+  // Handle new format with multiple ranges (to skip formula columns)
+  if (rowData.ranges) {
+    for (var r = 0; r < rowData.ranges.length; r++) {
+      var range = rowData.ranges[r];
+      var startCol = range.col;
+      var endCol = String.fromCharCode(startCol.charCodeAt(0) + range.values.length - 1);
+      var rangeAddress = startCol + lastRow + ':' + endCol + lastRow;
+      debugLog('Writing to range: ' + rangeAddress);
+
+      var updateUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/range(address=\'' + rangeAddress + '\')';
+
+      var updateResponse = await fetch(updateUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          values: [range.values]
+        })
+      });
+
+      debugLog('Write response: HTTP ' + updateResponse.status);
+
+      if (!updateResponse.ok) {
+        var errorData = await updateResponse.json();
+        debugLog('ERROR: ' + JSON.stringify(errorData), true);
+        throw new Error(errorData.error?.message || 'Failed to write row (HTTP ' + updateResponse.status + ')');
+      }
+    }
+    debugLog('SUCCESS! Wrote to row ' + lastRow, false);
+    return { success: true, row: lastRow };
+  }
+
+  // Original format: simple array for all columns
   var numColumns = rowData.length;
   var endColumn = String.fromCharCode(64 + numColumns);
   var rangeAddress = 'A' + lastRow + ':' + endColumn + lastRow;
   debugLog('Range: ' + rangeAddress);
 
-  // Write the new row
   var updateUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/range(address=\'' + rangeAddress + '\')';
 
   debugLog('Writing data...');
@@ -1038,7 +1071,14 @@ async function submitData(data, isCorrection) {
 
   if (data.type === 'mileage') {
     sheetName = 'Mileage';
-    rowData = [data.date, '', data.finish, data.from || '', data.to || '', '', data.wp, data.description || ''];
+    // Mileage has formulas in columns B and F - write to other columns only
+    rowData = {
+      ranges: [
+        { col: 'A', values: [data.date] },
+        { col: 'C', values: [data.finish, data.from || '', data.to || ''] },  // C, D, E
+        { col: 'G', values: [data.wp, data.description || ''] }  // G, H
+      ]
+    };
   } else if (data.type === 'gas') {
     sheetName = 'Gas';
     rowData = [data.date, data.odometer, data.liters, data.price, ''];
