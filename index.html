@@ -241,12 +241,12 @@ var categoryKeywords = {
   'car wash': 'Auto Wash',
   'auto wash': 'Auto Wash',
   'wash': 'Auto Wash',
-  'meals': 'Meals & Entertainment',
-  'meal': 'Meals & Entertainment',
-  'dinner': 'Meals & Entertainment',
-  'lunch': 'Meals & Entertainment',
-  'breakfast': 'Meals & Entertainment',
-  'entertainment': 'Meals & Entertainment',
+  'meals': 'Meals',
+  'meal': 'Meals',
+  'dinner': 'Meals',
+  'lunch': 'Meals',
+  'breakfast': 'Meals',
+  'coffee': 'Meals',
   'promotion': 'Promotions/Gifts/Tickets',
   'gift': 'Promotions/Gifts/Tickets',
   'ticket': 'Promotions/Gifts/Tickets',
@@ -282,7 +282,7 @@ var categoryKeywords = {
   'health': 'Health'
 };
 
-var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals & Entertainment', 'Promotions/Gifts/Tickets', 'Office/Postage/Stationery', 'Hotels', 'Travel Fares', 'Phone/Internet', 'Other Business', 'BUH', 'CME', 'License/Membership Fees', 'NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health'];
+var allCategories = ['Parking', 'Repairs & Maintenance', 'Auto Wash', 'Meals', 'Promotions/Gifts/Tickets', 'Office/Postage/Stationery', 'Hotels', 'Travel Fares', 'Phone/Internet', 'Other Business', 'BUH', 'CME', 'License/Membership Fees', 'NON-BUH', 'Donations', 'Special Expenses', 'FYI', 'Health'];
 
 // Microsoft Authentication Functions
 async function signIn() {
@@ -884,7 +884,7 @@ function parseExpense(text) {
 
   // Parse category: text after "category" until corp/personal/paid or end
   var category = null;
-  var categoryMatch = text.match(/\bcategory\s+(.+?)(?:\s+(?:corp|corporate|personal|paid)\b|$)/i);
+  var categoryMatch = text.match(/\bcategory\s+(.+?)(?:\s+(?:corp|corporate|personal|paid)\b|\s*$)/i);
   if (categoryMatch) {
     var categoryText = categoryMatch[1].trim().toLowerCase();
     // Look up in categoryKeywords
