@@ -756,11 +756,14 @@ function parseMileage(text) {
   var to = toMatch ? toMatch[2] : '';
 
   // Strip stop words that may have been concatenated by voice recognition
+  // Handles: "churchfor", "churchforwork", "church4work", "churchfourpersonal", etc.
   if (from) {
-    from = from.replace(/(for|work|personal|corp|corporate)$/i, '').trim();
+    from = from.replace(/(for|four|4)?(work|personal|corp|corporate)$/i, '').trim();
+    from = from.replace(/(for|four|4)$/i, '').trim();
   }
   if (to) {
-    to = to.replace(/(for|work|personal|corp|corporate)$/i, '').trim();
+    to = to.replace(/(for|four|4)?(work|personal|corp|corporate)$/i, '').trim();
+    to = to.replace(/(for|four|4)$/i, '').trim();
   }
 
   var wp = null;
