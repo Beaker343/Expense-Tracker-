@@ -175,6 +175,16 @@ h1 { color: white; text-align: center; font-size: 22px; margin-bottom: 20px; }
 </div>
 </div>
 
+<div class="overlay" id="parseErrorPrompt">
+<div class="popup">
+<h2>⚠️ Parsing Issue</h2>
+<p id="parseErrorTranscript" style="font-size: 12px; color: #aaa; margin-bottom: 10px;"></p>
+<p id="parseErrorMessage" style="color: #ff6b81;"></p>
+<button class="btn1" onclick="submitAndCorrect()">Submit & Correct</button>
+<button class="btn2" onclick="tryAgain()">Try Again</button>
+</div>
+</div>
+
 <script>
 // Microsoft Authentication Configuration
 var msalConfig = {
@@ -591,7 +601,9 @@ function stopListening() {
   isRecognitionActive = false;
   showMainButtons();
 
-  var transcript = spokenText.trim().toLowerCase();
+  var originalTranscript = spokenText.trim();
+  var transcript = originalTranscript.toLowerCase();
+  lastTranscript = originalTranscript; // Store for error display
   if (!transcript) {
     updateStatus('No speech detected. Tap a button to try again.', true);
     return;
@@ -946,11 +958,11 @@ function parseExpense(text) {
   pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: description, date: date };
 
   if (!amount) {
-    updateStatus('Need amount. Say "amount $X". Tap 💳 to try again.', true);
+    showParseError(text, 'amount', 'Missing amount. Say "amount $X".');
     return;
   }
   if (!category) {
-    updateStatus('Need category. Say "category [type]". Tap 💳 to try again.', true);
+    showParseError(text, 'category', 'Missing category. Say "category [type]".');
     return;
   }
   if (!corpPersonal) {
@@ -1005,6 +1017,41 @@ function selectCorp(value) {
   pendingData.corpPersonal = value;
   pendingData.paidOn = (value === 'Corp') ? 'Corp Card' : 'Personal Card';
   submitData(pendingData, false);
+}
+
+var lastTranscript = '';
+var parseErrorField = '';
+
+function showParseError(text, field, message) {
+  parseErrorField = field;
+  document.getElementById('parseErrorTranscript').textContent = 'Heard: "' + lastTranscript + '"';
+  document.getElementById('parseErrorMessage').textContent = message;
+  document.getElementById('parseErrorPrompt').classList.add('active');
+}
+
+async function submitAndCorrect() {
+  document.getElementById('parseErrorPrompt').classList.remove('active');
+  // Fill in defaults for missing required fields
+  if (!pendingData.category) pendingData.category = '';
+  if (!pendingData.amount) pendingData.amount = 0;
+  if (!pendingData.corpPersonal) {
+    pendingData.corpPersonal = 'Corp';
+    pendingData.paidOn = 'Corp Card';
+  }
+  // Submit the data
+  await submitData(pendingData, false);
+  // Wait a moment for submission to complete, then open correction window
+  setTimeout(function() {
+    if (lastSavedRow) {
+      showEditPrompt();
+    }
+  }, 500);
+}
+
+function tryAgain() {
+  document.getElementById('parseErrorPrompt').classList.remove('active');
+  showMainButtons();
+  updateStatus('Tap a button to try again.', false);
 }
 
 // Microsoft Graph API - Add row to Excel
