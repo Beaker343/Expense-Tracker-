@@ -959,7 +959,7 @@ function parseExpense(text) {
   pendingData = { type: 'expense', amount: amount, category: category, corpPersonal: corpPersonal, paidOn: paidOn, vendor: vendor, description: description, date: date };
 
   if (!amount) {
-    showParseError(text, 'amount', 'Missing amount. Say "amount $X".');
+    showParseError(text, 'amount', 'Missing amount. Say "amount [number]".');
     return;
   }
   if (!category) {
@@ -1025,9 +1025,12 @@ var parseErrorField = '';
 
 function showParseError(text, field, message) {
   parseErrorField = field;
-  document.getElementById('parseErrorTranscript').textContent = 'Heard: "' + lastTranscript + '"';
+  // Use the passed text if lastTranscript is empty
+  var displayText = lastTranscript || text;
+  document.getElementById('parseErrorTranscript').textContent = 'Heard: "' + displayText + '"';
   document.getElementById('parseErrorMessage').textContent = message;
   document.getElementById('parseErrorPrompt').classList.add('active');
+  debugLog('Parse error - heard: ' + displayText);
 }
 
 async function submitAndCorrect() {
