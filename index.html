@@ -954,25 +954,33 @@ async function addRowToExcel(sheetName, rowData) {
   }).join('/');
   debugLog('File path: ' + encodedPath);
 
-  // Get the used range to find the last row
-  var usedRangeUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/usedRange';
+  // Get Column A (Date) to find first empty row - ignores formula-only rows
+  var colAUrl = 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodedPath + ':/workbook/worksheets/' + encodeURIComponent(sheetName) + '/range(address=\'A1:A500\')';
 
-  debugLog('Fetching used range...');
-  var usedRangeResponse = await fetch(usedRangeUrl, {
+  debugLog('Fetching Column A to find first empty row...');
+  var colAResponse = await fetch(colAUrl, {
     headers: { 'Authorization': 'Bearer ' + token }
   });
 
-  debugLog('Used range response: HTTP ' + usedRangeResponse.status);
+  debugLog('Column A response: HTTP ' + colAResponse.status);
 
-  if (!usedRangeResponse.ok) {
-    var errorText = await usedRangeResponse.text();
+  if (!colAResponse.ok) {
+    var errorText = await colAResponse.text();
     debugLog('ERROR: ' + errorText, true);
-    throw new Error('Sheet "' + sheetName + '" not found or file error (HTTP ' + usedRangeResponse.status + ')');
+    throw new Error('Sheet "' + sheetName + '" not found or file error (HTTP ' + colAResponse.status + ')');
   }
 
-  var usedRangeData = await usedRangeResponse.json();
-  var lastRow = usedRangeData.rowCount + 1;
-  debugLog('Current rows: ' + usedRangeData.rowCount + ', writing to row: ' + lastRow);
+  var colAData = await colAResponse.json();
+  var values = colAData.values || [];
+
+  // Find first empty row in Column A (skip header row)
+  var lastRow = 2; // Start at row 2 (after header)
+  for (var i = 1; i < values.length; i++) {
+    if (values[i] && values[i][0] && values[i][0].toString().trim() !== '') {
+      lastRow = i + 2; // Next row after this data row (1-indexed + skip header)
+    }
+  }
+  debugLog('First empty Date row: ' + lastRow);
 
   // Build the range address for the new row
   var numColumns = rowData.length;
