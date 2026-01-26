@@ -872,11 +872,11 @@ function parseExpense(text) {
 
   var date = parseDate(text);
 
-  // Parse amount: look for "amount" delimiter followed by $X or X dollars
+  // Parse amount: look for "amount" followed by number (with or without $)
   var amount = null;
-  var amountMatch = text.match(/\bamount\s+\$?\s*(\d+(?:\.\d+)?)/i);
+  var amountMatch = text.match(/amount\s+\$?\s*(\d+(?:[.,]\d+)?)/i);
   if (!amountMatch) {
-    amountMatch = text.match(/\bamount\s+(\d+(?:\.\d+)?)\s*dollars?/i);
+    amountMatch = text.match(/amount\s+(\d+(?:[.,]\d+)?)\s*dollars?/i);
   }
   if (amountMatch) {
     amount = parseFloat(amountMatch[1]);
