@@ -1361,10 +1361,11 @@ function getSummary(data) {
 function showSuccess(data, isCorrection) {
   var summary = getSummary(data);
   var rowInfo = lastSavedRow ? ' (row ' + lastSavedRow + ')' : '';
+  var heardText = lastTranscript ? '\nHeard: "' + lastTranscript + '"' : '';
   if (isCorrection) {
     updateStatus('✅ Fixed: ' + summary + rowInfo, false, 'success');
   } else {
-    updateStatus('✅ ' + summary + rowInfo, false, 'success');
+    updateStatus('✅ ' + summary + rowInfo + heardText, false, 'success');
   }
   hideRetryButton();
   showCorrectButton();
