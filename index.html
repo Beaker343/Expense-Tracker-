@@ -864,6 +864,12 @@ function parseGas(text) {
 
 function parseExpense(text) {
   debugLog('parseExpense input: "' + text + '"');
+
+  // Fix concatenated words from speech recognition (e.g., "mealscategory" → "meals category")
+  text = text.replace(/(\w)(amount|vendor|category|corp|corporate|personal)\b/gi, '$1 $2');
+  text = text.replace(/\bfor(\w)/gi, 'for $1');
+  debugLog('parseExpense cleaned: "' + text + '"');
+
   var date = parseDate(text);
 
   // Parse amount: look for "amount" delimiter followed by $X or X dollars
