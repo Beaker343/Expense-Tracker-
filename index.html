@@ -1410,6 +1410,20 @@ async function executeDelete() {
       if (!response.ok) {
         throw new Error('Failed to delete: HTTP ' + response.status);
       }
+    } else if (lastSavedSheet === 'Allergy Shots') {
+      // Clear A:D (date, right, left, notes)
+      var patchUrl = baseUrl + '/range(address=\'A' + lastSavedRow + ':D' + lastSavedRow + '\')';
+      var response = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values: [['', '', '', '']] })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete: HTTP ' + response.status);
+      }
     } else {
       // For other sheets, clear the whole row
       var clearUrl = baseUrl + '/range(address=\'A' + lastSavedRow + ':H' + lastSavedRow + '\')/clear';
