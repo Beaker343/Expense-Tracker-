@@ -865,9 +865,11 @@ function parseGas(text) {
 function parseExpense(text) {
   debugLog('parseExpense input: "' + text + '"');
 
-  // Fix concatenated words from speech recognition (e.g., "mealscategory" → "meals category")
-  text = text.replace(/(\w)(amount|vendor|category|corp|corporate|personal)\b/gi, '$1 $2');
-  text = text.replace(/\bfor(\w)/gi, 'for $1');
+  // Fix concatenated words from speech recognition
+  // Add space BEFORE keywords: "mealscategory" → "meals category"
+  text = text.replace(/(\w)(amount|vendor|category|corp|corporate|personal)/gi, '$1 $2');
+  // Add space AFTER keywords: "categoryEducation" → "category Education"
+  text = text.replace(/(amount|vendor|category|for)(\w)/gi, '$1 $2');
   debugLog('parseExpense cleaned: "' + text + '"');
 
   var date = parseDate(text);
