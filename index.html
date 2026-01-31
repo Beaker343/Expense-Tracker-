@@ -1400,7 +1400,7 @@ function showSuccess(data, isCorrection) {
   hideRetryButton();
   showCorrectButton();
   showDeleteButton();
-  if (data.type !== 'mileage') {
+  if (data.type !== 'mileage' && data.type !== 'expense') {
     showNextButton();
   }
 }
